@@ -148,7 +148,7 @@
 
         async function loadRefrigerants() {
             try {
-                const response = await fetch('/refrigerants'); // CAMBIADO A RUTA RELATIVA
+                const response = await fetch('/refrigerants');
                 const data = await response.json();
                 if (data.status === 'success') {
                     refrigerantSelect.innerHTML = '';
@@ -175,7 +175,7 @@
             const subcooling = parseFloat(subcoolingInput.value);
 
             try {
-                const response = await fetch('/thermo', { // CAMBIADO A RUTA RELATIVA
+                const response = await fetch('/thermo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -191,13 +191,21 @@
                     thermoData = data;
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
+                    updatePressures(); // Actualizar presiones inmediatamente
+                    console.log('Presiones - Baja:', thermoData.points['2'].pressure, 'Alta:', thermoData.points['3'].pressure);
                 } else {
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
+                    presionBajaSpan.textContent = 'N/A';
+                    presionAltaSpan.textContent = 'N/A';
+                    alert('Error del servidor: ' + data.message);
                 }
             } catch (error) {
                 console.error('Error al conectar con el backend:', error);
                 copValueSpan.textContent = 'N/A';
+                presionBajaSpan.textContent = 'N/A';
+                presionAltaSpan.textContent = 'N/A';
+                alert('No se pudo conectar al servidor. Revisa la consola.');
             }
         }
 
@@ -212,10 +220,10 @@
             const presionAtm = getPresionAtmosferica(altura);
             const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
             const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
-            const presionBaja = P2 - presionAtm; // Presión manométrica baja en bar
-            const presionAlta = P3 - presionAtm; // Presión manométrica alta en bar
-            const presionBajaPsi = (presionBaja * 14.7).toFixed(2); // Convertir a psi
-            const presionAltaPsi = (presionAlta * 14.7).toFixed(2); // Convertir a psi
+            const presionBaja = P2 - presionAtm; // Presión manométrica baja
+            const presionAlta = P3 - presionAtm; // Presión manométrica alta
+            const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
+            const presionAltaPsi = (presionAlta * 14.7).toFixed(2);
 
             presionBajaSpan.textContent = `${presionBaja.toFixed(2)} bar ${presionBajaPsi} psi`;
             presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar ${presionAltaPsi} psi`;
@@ -224,9 +232,8 @@
         function updateThermo() {
             fetchThermoProperties().then(() => {
                 console.log('Datos actualizados, redibujando...');
-                drawCycle();
-                drawPHDiagram();
-                updatePressures();
+                drawCycle(); // Intentar animaciones (puede fallar)
+                drawPHDiagram(); // Dibujar gráfico directamente
             }).catch(error => {
                 console.error('Error al actualizar:', error);
             });
@@ -358,7 +365,7 @@
 
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
-            if (condenserImg.complete) {
+            if (condenserImg.complete && condenserImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -375,7 +382,7 @@
 
             const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
             const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-            if (evaporatorImg.complete) {
+            if (evaporatorImg.complete && evaporatorImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -392,7 +399,7 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImg.complete) {
+            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -401,7 +408,7 @@
 
             const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
             const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            if (expansionImg.complete) {
+            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -439,10 +446,7 @@
             const cyclePressures = cyclePoints.map(p => p.pressure);
             const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
 
-            const evapTempC = parseFloat(evapTempInput.value);
-            const minTempK = evapTempC - 10 + 273.15;
-            const saturationPoint = thermoData.saturation.vapor.find(p => Math.abs((p.temperature + 273.15) - minTempK) < 5) || thermoData.saturation.vapor[0];
-            const minP = saturationPoint ? saturationPoint.pressure * 0.9 : Math.min(...cyclePressures) * 0.8;
+            const minP = Math.min(...cyclePressures) * 0.8;
             const maxP = Math.max(...cyclePressures) * 1.2;
             const minH = Math.min(...cycleEnthalpies) * 0.9;
             const maxH = Math.max(...cycleEnthalpies) * 1.1;
@@ -476,32 +480,16 @@
             const plotWidth = 324 - 2 * marginX;
             const plotHeight = 233 - 2 * marginY;
 
-            const evapTempC = parseFloat(evapTempInput.value);
-            const condTempC = parseFloat(condTempInput.value);
-            const tempMinC = evapTempC - 10;
-            const tempMaxC = condTempC;
-            const tempMinK = tempMinC + 273.15;
-            const tempMaxK = tempMaxC + 273.15;
-
-            const filteredLiquid = thermoData.saturation.liquid.filter(point => {
-                const tempK = point.temperature + 273.15;
-                return tempK >= tempMinK && tempK <= tempMaxK;
-            });
-            const filteredVapor = thermoData.saturation.vapor.filter(point => {
-                const tempK = point.temperature + 273.15;
-                return tempK >= tempMinK && tempK <= tempMaxK;
-            });
             const cyclePoints = [
                 thermoData.points['1'],
                 thermoData.points['2'],
                 thermoData.points['3'],
                 thermoData.points['4']
             ];
-
             const cyclePressures = cyclePoints.map(p => p.pressure);
             const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
-            const saturationPoint = thermoData.saturation.vapor.find(p => Math.abs((p.temperature + 273.15) - tempMinK) < 5) || thermoData.saturation.vapor[0];
-            const minP = saturationPoint ? saturationPoint.pressure * 0.9 : Math.min(...cyclePressures) * 0.8;
+
+            const minP = Math.min(...cyclePressures) * 0.8;
             const maxP = Math.max(...cyclePressures) * 1.2;
             const minH = Math.min(...cycleEnthalpies) * 0.9;
             const maxH = Math.max(...cycleEnthalpies) * 1.1;
@@ -509,6 +497,7 @@
             function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
             function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
 
+            // Dibujar ejes
             phCtx.beginPath();
             phCtx.moveTo(marginX, marginY);
             phCtx.lineTo(marginX, marginY + plotHeight);
@@ -519,14 +508,12 @@
 
             phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            const pressureText = '     Presión (bar)';
-            const pressureTextWidth = phCtx.measureText(pressureText).width;
-            phCtx.fillText(pressureText, marginX - pressureTextWidth / 2, marginY - 10);
-
+            const pressureText = 'Presión (bar)';
+            phCtx.fillText(pressureText, marginX - 32.4, marginY - 10);
             const enthalpyText = 'Entalpía (kJ/kg)';
-            const enthalpyTextWidth = phCtx.measureText(enthalpyText).width;
-            phCtx.fillText(enthalpyText, marginX + plotWidth - enthalpyTextWidth, marginY + plotHeight - 5);
+            phCtx.fillText(enthalpyText, marginX + plotWidth - 80, marginY + plotHeight + 15);
 
+            // Marcas de presión
             const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
             const numPressureTicks = 6;
@@ -538,10 +525,10 @@
                 phCtx.moveTo(marginX - 5.4, y);
                 phCtx.lineTo(marginX + 5.4, y);
                 phCtx.stroke();
-                phCtx.font = '14.4px Arial';
                 phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
             }
 
+            // Marcas de entalpía
             const numEnthalpyTicks = 6;
             const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
             for (let i = 0; i < numEnthalpyTicks; i++) {
@@ -551,13 +538,13 @@
                 phCtx.moveTo(x, marginY + plotHeight - 5.4);
                 phCtx.lineTo(x, marginY + plotHeight + 5.4);
                 phCtx.stroke();
-                phCtx.font = '14.4px Arial';
                 phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
             }
 
-            if (filteredLiquid.length > 0) {
+            // Curvas de saturación
+            if (thermoData.saturation.liquid.length > 0) {
                 phCtx.beginPath();
-                filteredLiquid.forEach((point, index) => {
+                thermoData.saturation.liquid.forEach((point, index) => {
                     const x = scaleX(point.enthalpy);
                     const y = scaleY(point.pressure);
                     if (index === 0) phCtx.moveTo(x, y);
@@ -568,9 +555,9 @@
                 phCtx.stroke();
             }
 
-            if (filteredVapor.length > 0) {
+            if (thermoData.saturation.vapor.length > 0) {
                 phCtx.beginPath();
-                filteredVapor.forEach((point, index) => {
+                thermoData.saturation.vapor.forEach((point, index) => {
                     const x = scaleX(point.enthalpy);
                     const y = scaleY(point.pressure);
                     if (index === 0) phCtx.moveTo(x, y);
@@ -581,47 +568,8 @@
                 phCtx.stroke();
             }
 
+            // Puntos del ciclo
             const pointsPH = getPointsPH();
-            const midPointX = (pointsPH[2].x + pointsPH[3].x) / 2;
-
-            const tempStep = 20;
-            const minTemp = Math.floor(tempMinC / tempStep) * tempStep;
-            const maxTemp = Math.floor(tempMaxC / tempStep) * tempStep;
-
-            for (let temp = minTemp; temp <= maxTemp; temp += tempStep) {
-                const liquidPoint = filteredLiquid.reduce((prev, curr) =>
-                    Math.abs((curr.temperature + 273.15) - (temp + 273.15)) < Math.abs((prev.temperature + 273.15) - (temp + 273.15)) ? curr : prev,
-                    filteredLiquid[0]
-                );
-                const vaporPoint = filteredVapor.reduce((prev, curr) =>
-                    Math.abs((curr.temperature + 273.15) - (temp + 273.15)) < Math.abs((prev.temperature + 273.15) - (temp + 273.15)) ? curr : prev,
-                    filteredVapor[0]
-                );
-
-                if (liquidPoint && vaporPoint) {
-                    const xLiquid = scaleX(liquidPoint.enthalpy);
-                    const yLiquid = scaleY(liquidPoint.pressure);
-                    const xVapor = scaleX(vaporPoint.enthalpy);
-                    const yVapor = scaleY(vaporPoint.pressure);
-
-                    phCtx.beginPath();
-                    phCtx.moveTo(xLiquid, yLiquid);
-                    phCtx.lineTo(xVapor, yVapor);
-                    phCtx.strokeStyle = 'gray';
-                    phCtx.lineWidth = 0.54;
-                    phCtx.setLineDash([2.7, 2.7]);
-                    phCtx.stroke();
-                    phCtx.setLineDash([]);
-
-                    if (yVapor < marginY + plotHeight) {
-                        phCtx.font = '10.8px Arial';
-                        phCtx.fillStyle = '#000000';
-                        const tempLabel = Math.round(temp);
-                        phCtx.fillText(`${tempLabel}°C`, midPointX - 10, yVapor - 3.24);
-                    }
-                }
-            }
-
             if (pointsPH.length === 4) {
                 phCtx.beginPath();
                 pointsPH.forEach((point, index) => {
@@ -633,8 +581,6 @@
                 phCtx.lineWidth = 2.16;
                 phCtx.stroke();
 
-                hoveredPoint = null;
-                const hoverRadius = 20;
                 pointsPH.forEach(point => {
                     phCtx.beginPath();
                     phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
@@ -648,9 +594,7 @@
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < hoverRadius) {
-                        hoveredPoint = point.label;
-                    }
+                    if (distance < 20) hoveredPoint = point.label;
                 });
 
                 if (hoveredPoint) {
@@ -688,7 +632,6 @@
             cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
             drawCycle();
             fanAngle += 0.05;
-            drawPHDiagram();
             requestAnimationFrame(animate);
         }
 
@@ -696,10 +639,12 @@
         loadRefrigerants().then(() => {
             fetchThermoProperties().then(() => {
                 console.log('Datos iniciales cargados, comenzando animación...');
+                drawPHDiagram();
                 updatePressures();
                 animate();
             }).catch(error => {
                 console.error('Error al iniciar:', error);
+                drawPHDiagram();
                 animate();
             });
         });
