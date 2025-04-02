@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Simulador de Refrigeración con Diagrama P-h Integrado</title>
+    <title>Simulador de RefrigeraciÃ³n con Diagrama P-h Integrado</title>
     <style>
         #mainContainer { 
             position: relative; 
@@ -49,21 +49,21 @@
 <body>
     <div id="controls">
         <div class="control-row">
-            <strong>Condiciones del Ciclo de Refrigeración</strong>
+            <strong>Condiciones del Ciclo de RefrigeraciÃ³n</strong>
         </div>
         <div class="control-row">
             <label>Refrigerante: </label>
             <select id="refrigerant">
-                <!-- Las opciones se llenarán dinámicamente -->
+                <!-- Las opciones se llenarÃ¡n dinÃ¡micamente -->
             </select>
         </div>
         <div class="control-row">
-            <label>T. Evap (°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
-            <label>Superheat (°C): </label><input type="number" id="superheat" value="0" step="0.1">
+            <label>T. Evap (Â°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
+            <label>Superheat (Â°C): </label><input type="number" id="superheat" value="0" step="0.1">
         </div>
         <div class="control-row">
-            <label>T. Cond (°C): </label><input type="number" id="condTemp" value="40" step="0.1">
-            <label>Subcooling (°C): </label><input type="number" id="subcooling" value="0" step="0.1">
+            <label>T. Cond (Â°C): </label><input type="number" id="condTemp" value="40" step="0.1">
+            <label>Subcooling (Â°C): </label><input type="number" id="subcooling" value="0" step="0.1">
         </div>
         <div class="control-row">
             <label>Altura sobre el Nivel del Mar: </label>
@@ -88,10 +88,10 @@
             </select>
         </div>
         <div class="output-row">
-            <label>Presión de Baja (bar psi): </label><span id="presionBaja">N/A</span>
+            <label>PresiÃ³n de Baja (bar psi): </label><span id="presionBaja">N/A</span>
         </div>
         <div class="output-row">
-            <label>Presión de Alta (bar psi): </label><span id="presionAlta">N/A</span>
+            <label>PresiÃ³n de Alta (bar psi): </label><span id="presionAlta">N/A</span>
         </div>
         <div class="output-row">
             <label>COP: </label><span id="copValue">N/A</span>
@@ -148,7 +148,8 @@
 
         async function loadRefrigerants() {
             try {
-                const response = await fetch('http://localhost:5000/refrigerants');
+          
+                const response = await fetch('/refrigerants');
                 const data = await response.json();
                 if (data.status === 'success') {
                     refrigerantSelect.innerHTML = '';
@@ -176,16 +177,23 @@
 
             try {
                 const response = await fetch('http://localhost:5000/thermo', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        refrigerant: refrigerantSelect.value,
-                        evap_temp: evapTempK,
-                        cond_temp: condTempK,
-                        superheat: superheat,
-                        subcooling: subcooling
-                    })
-                });
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        refrigerant: refrigerantSelect.value,
+        evap_temp: evapTempK,
+        cond_temp: condTempK,
+        superheat: superheat,
+        subcooling: subcooling
+    })
+});
+                
+                
+                
+                
+                
+                
+               
                 const data = await response.json();
                 if (data.status === 'success') {
                     thermoData = data;
@@ -210,10 +218,10 @@
         function updatePressures() {
             const altura = parseInt(altitudeSelect.value);
             const presionAtm = getPresionAtmosferica(altura);
-            const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
-            const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
-            const presionBaja = P2 - presionAtm; // Presión manométrica baja en bar
-            const presionAlta = P3 - presionAtm; // Presión manométrica alta en bar
+            const P2 = thermoData.points['2'].pressure / 100000; // PresiÃ³n absoluta baja en bar
+            const P3 = thermoData.points['3'].pressure / 100000; // PresiÃ³n absoluta alta en bar
+            const presionBaja = P2 - presionAtm; // PresiÃ³n manomÃ©trica baja en bar
+            const presionAlta = P3 - presionAtm; // PresiÃ³n manomÃ©trica alta en bar
             const presionBajaPsi = (presionBaja * 14.7).toFixed(2); // Convertir a psi
             const presionAltaPsi = (presionAlta * 14.7).toFixed(2); // Convertir a psi
 
@@ -252,13 +260,13 @@
                 if (thermoData.superheat === 0) return "Vapor Saturado";
                 else if (thermoData.superheat > 0) return "Vapor Sobrecalentado";
             } else if (pointId === '4') {
-                if (thermoData.subcooling > 0) return "Líquido Subenfriado";
-                else if (thermoData.subcooling === 0) return "Líquido Saturado";
+                if (thermoData.subcooling > 0) return "LÃ­quido Subenfriado";
+                else if (thermoData.subcooling === 0) return "LÃ­quido Saturado";
             }
 
-            if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
-            else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
-            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Vapor Saturado + Líquido Saturado";
+            if (enthalpy < hLiquid - margin) return "LÃ­quido Subenfriado";
+            else if (Math.abs(enthalpy - hLiquid) <= margin) return "LÃ­quido Saturado";
+            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Vapor Saturado + LÃ­quido Saturado";
             else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
             else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
             return "Desconocido";
@@ -519,11 +527,11 @@
 
             phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            const pressureText = '     Presión (bar)';
+            const pressureText = '     PresiÃ³n (bar)';
             const pressureTextWidth = phCtx.measureText(pressureText).width;
             phCtx.fillText(pressureText, marginX - pressureTextWidth / 2, marginY - 10);
 
-            const enthalpyText = 'Entalpía (kJ/kg)';
+            const enthalpyText = 'EntalpÃ­a (kJ/kg)';
             const enthalpyTextWidth = phCtx.measureText(enthalpyText).width;
             phCtx.fillText(enthalpyText, marginX + plotWidth - enthalpyTextWidth, marginY + plotHeight - 5);
 
@@ -617,7 +625,7 @@
                         phCtx.font = '10.8px Arial';
                         phCtx.fillStyle = '#000000';
                         const tempLabel = Math.round(temp);
-                        phCtx.fillText(`${tempLabel}°C`, midPointX - 10, yVapor - 3.24);
+                        phCtx.fillText(`${tempLabel}Â°C`, midPointX - 10, yVapor - 3.24);
                     }
                 }
             }
@@ -643,7 +651,7 @@
                     phCtx.font = '12.6px Arial';
                     phCtx.fillStyle = 'black';
                     const tempC = (point.temp - 273.15).toFixed(1);
-                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
+                    phCtx.fillText(`P${point.label} (${tempC}Â°C)`, point.x + 5.4, point.y - 4.32);
 
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
@@ -663,7 +671,7 @@
                     const pointData = thermoData.points[hoveredPoint];
                     const textLines = [
                         `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
-                        `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
+                        `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}Â°C`,
                         `h${hoveredPoint} = ${(pointData.enthalpy / 1000).toFixed(1)} kJ/kg`,
                         `${getPhase(pointData, hoveredPoint)}`
                     ];
@@ -692,10 +700,10 @@
             requestAnimationFrame(animate);
         }
 
-        console.log('Iniciando aplicación...');
+        console.log('Iniciando aplicaciÃ³n...');
         loadRefrigerants().then(() => {
             fetchThermoProperties().then(() => {
-                console.log('Datos iniciales cargados, comenzando animación...');
+                console.log('Datos iniciales cargados, comenzando animaciÃ³n...');
                 updatePressures();
                 animate();
             }).catch(error => {
