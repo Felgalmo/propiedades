@@ -148,8 +148,7 @@
 
         async function loadRefrigerants() {
             try {
-          
-                const response = await fetch('/refrigerants');
+                const response = await fetch('/refrigerants'); // CAMBIADO A RUTA RELATIVA
                 const data = await response.json();
                 if (data.status === 'success') {
                     refrigerantSelect.innerHTML = '';
@@ -176,34 +175,17 @@
             const subcooling = parseFloat(subcoolingInput.value);
 
             try {
-                
-          const response = await fetch('/thermo', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-        refrigerant: refrigerantSelect.value,
-        evap_temp: evapTempK,
-        cond_temp: condTempK,
-        superheat: superheat,
-        subcooling: subcooling
-    })
-});      
-                
-                
-                
-                
-                
-                
-                
-                
-
-                
-                
-                
-                
-                
-                
-               
+                const response = await fetch('/thermo', { // CAMBIADO A RUTA RELATIVA
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        refrigerant: refrigerantSelect.value,
+                        evap_temp: evapTempK,
+                        cond_temp: condTempK,
+                        superheat: superheat,
+                        subcooling: subcooling
+                    })
+                });
                 const data = await response.json();
                 if (data.status === 'success') {
                     thermoData = data;
