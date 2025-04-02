@@ -176,7 +176,8 @@
             const subcooling = parseFloat(subcoolingInput.value);
 
             try {
-                const response = await fetch('http://localhost:5000/thermo', {
+                
+          const response = await fetch('/thermo', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -186,7 +187,16 @@
         superheat: superheat,
         subcooling: subcooling
     })
-});
+});      
+                
+                
+                
+                
+                
+                
+                
+                
+
                 
                 
                 
