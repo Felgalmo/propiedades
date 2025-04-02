@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import CoolProp.CoolProp as CP
@@ -10,7 +10,7 @@ CORS(app)
 def get_refrigerants():
     try:
         refrigerants = CP.FluidsList()
-        print("Refrigerantes soportados:", refrigerants)  # Para verificar en consola
+        print("Refrigerantes soportados:", refrigerants)
         return jsonify({'status': 'success', 'refrigerants': refrigerants})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -20,11 +20,11 @@ def get_thermo_properties():
     data = request.get_json()
     print(f"Datos recibidos: {data}")
     
-    refrigerant = data.get('refrigerant', 'R134a')
-    evap_temp = float(data.get('evap_temp', 263.15))  # Temperatura en K
-    cond_temp = float(data.get('cond_temp', 313.15))  # Temperatura en K
-    superheat_input = float(data.get('superheat', 0))  # Acepta decimales
-    subcooling_input = float(data.get('subcooling', 0))  # Acepta decimales
+    refrigerant = data.get('refrigerant', 'R134a')  # Por defecto R134a, que soporta 40°C
+    evap_temp = float(data.get('evap_temp', 263.15))  # -10°C por defecto
+    cond_temp = float(data.get('cond_temp', 313.15))  # 40°C por defecto
+    superheat = float(data.get('superheat', 0))
+    subcooling = float(data.get('subcooling', 0))
     condenser_failure = data.get('condenser_failure', 'normal')
     evaporator_failure = data.get('evaporator_failure', 'normal')
 
@@ -32,29 +32,35 @@ def get_thermo_properties():
         # Ajustar temperaturas según fallas
         cond_temp_adjusted = cond_temp
         evap_temp_adjusted = evap_temp
-        superheat = superheat_input
-        subcooling = subcooling_input
+        superheat_adjusted = superheat
+        subcooling_adjusted = subcooling
 
         # Ajustes por fallas del evaporador
         if evaporator_failure == 'low':
             evap_temp_adjusted -= 2
         elif evaporator_failure == 'medium':
             evap_temp_adjusted -= 5
-            superheat = max(superheat, 2)
+            superheat_adjusted = max(superheat, 2)
         elif evaporator_failure == 'severe':
             evap_temp_adjusted -= 10
-            superheat = max(superheat, 5)
+            superheat_adjusted = max(superheat, 5)
 
         # Ajustes por fallas del condensador
         if condenser_failure == 'low':
             cond_temp_adjusted += 5
-            subcooling = 0  # Líquido saturado
+            subcooling_adjusted = 0
         elif condenser_failure == 'medium':
             cond_temp_adjusted += 10
-            subcooling = 0  # Mezcla dentro de la campana
+            subcooling_adjusted = 0
         elif condenser_failure == 'severe':
             cond_temp_adjusted += 20
-            subcooling = 0  # Mezcla más adentro de la campana
+            subcooling_adjusted = 0
+
+        # Verificar rangos válidos para el refrigerante
+        t_min = CP.PropsSI('Tmin', refrigerant)
+        t_max = CP.PropsSI('Tcrit', refrigerant)
+        if evap_temp_adjusted < t_min or cond_temp_adjusted > t_max:
+            raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} K, {t_max} K]")
 
         # Punto 2: Salida del compresor
         p2_pressure = CP.PropsSI('P', 'T', evap_temp_adjusted, 'Q', 1, refrigerant)
@@ -72,64 +78,59 @@ def get_thermo_properties():
         elif condenser_failure == 'low':
             p2_pressure *= 1.01
 
-        if superheat > 0:
-            p2_temp = evap_temp_adjusted + superheat
+        if superheat_adjusted > 0:
+            p2_temp = evap_temp_adjusted + superheat_adjusted
             p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
             s2 = CP.PropsSI('S', 'T', p2_temp, 'P', p2_pressure, refrigerant)
         else:
             p2_temp = evap_temp_adjusted
-            p2_enthalpy = CP.PropsSI('H', 'P', p2_pressure, 'Q', 1, refrigerant)  # Vapor saturado
-            s2 = CP.PropsSI('S', 'P', p2_pressure, 'Q', 1, refrigerant)  # Entropía de vapor saturado
+            p2_enthalpy = CP.PropsSI('H', 'P', p2_pressure, 'Q', 1, refrigerant)
+            s2 = CP.PropsSI('S', 'P', p2_pressure, 'Q', 1, refrigerant)
 
-        # Punto 3: Entrada al condensador (compresión isoentrópica)
+        # Punto 3: Entrada al condensador
         p3_pressure = CP.PropsSI('P', 'T', cond_temp_adjusted, 'Q', 0, refrigerant)
         try:
             p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'S', s2, refrigerant)
             p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
-        except ValueError as e:
-            print(f"Error en compresión isoentrópica: {e}. Usando temperatura de condensación ajustada.")
+        except ValueError:
             p3_temp = cond_temp_adjusted
             p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
 
-        # Punto 4: Salida del condensador (sin pérdida de presión)
-        p4_pressure = p3_pressure  # Eliminada la pérdida de presión
+        # Punto 4: Salida del condensador
+        p4_pressure = p3_pressure
         if condenser_failure == 'normal':
-            if subcooling > 0:
-                p4_temp = cond_temp_adjusted - subcooling
+            if subcooling_adjusted > 0:
+                p4_temp = cond_temp_adjusted - subcooling_adjusted
                 p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
             else:
                 p4_temp = cond_temp_adjusted
-                p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0, refrigerant)  # Líquido saturado
+                p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0, refrigerant)
         elif condenser_failure == 'low':
             p4_temp = cond_temp_adjusted
-            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0, refrigerant)  # Líquido saturado
+            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0, refrigerant)
         elif condenser_failure == 'medium':
-            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0.2, refrigerant)  # Mezcla con calidad 0.2
+            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0.2, refrigerant)
             p4_temp = CP.PropsSI('T', 'P', p4_pressure, 'Q', 0.2, refrigerant)
         elif condenser_failure == 'severe':
-            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0.5, refrigerant)  # Mezcla con calidad 0.5
+            p4_enthalpy = CP.PropsSI('H', 'P', p4_pressure, 'Q', 0.5, refrigerant)
             p4_temp = CP.PropsSI('T', 'P', p4_pressure, 'Q', 0.5, refrigerant)
 
-        # Punto 1: Entrada al evaporador (expansión isoentálpica)
-        p1_pressure = p2_pressure  # Según tu instrucción: P1 = P2
-        p1_enthalpy = p4_enthalpy  # Expansión isoentálpica
+        # Punto 1: Entrada al evaporador
+        p1_pressure = p2_pressure
+        p1_enthalpy = p4_enthalpy
         try:
             p1_temp = CP.PropsSI('T', 'P', p1_pressure, 'H', p1_enthalpy, refrigerant)
-        except ValueError as e:
-            print(f"Error al calcular T1: {e}. Usando temperatura de evaporación ajustada como aproximación.")
-            p1_temp = evap_temp_adjusted  # Fallback en caso de error
+        except ValueError:
+            p1_temp = evap_temp_adjusted
 
         # Cálculo del COP
-        q_evap = p2_enthalpy - p1_enthalpy  # Calor extraído en el evaporador (h2 - h1)
-        w_comp = p3_enthalpy - p2_enthalpy  # Energía requerida por el compresor (h3 - h2)
-        cop = q_evap / w_comp if w_comp != 0 else 0  # COP = (h2 - h1) / (h3 - h2)
+        q_evap = p2_enthalpy - p1_enthalpy
+        w_comp = p3_enthalpy - p2_enthalpy
+        cop = q_evap / w_comp if w_comp != 0 else 0
 
-        # Datos de saturación para el diagrama P-h
-        t_min = CP.PropsSI('Tmin', refrigerant)
-        t_max = CP.PropsSI('Tcrit', refrigerant)
+        # Datos de saturación
         num_points = 50
         temp_step = (t_max - t_min) / (num_points - 1)
-        
         saturation_data = {'liquid': [], 'vapor': []}
         for i in range(num_points):
             temp = t_min + i * temp_step
@@ -145,8 +146,8 @@ def get_thermo_properties():
             'refrigerant': refrigerant,
             'evap_temp': evap_temp_adjusted,
             'cond_temp': cond_temp_adjusted,
-            'superheat': superheat,
-            'subcooling': subcooling,
+            'superheat': superheat_adjusted,
+            'subcooling': subcooling_adjusted,
             'cop': cop,
             'condenser_failure': condenser_failure,
             'evaporator_failure': evaporator_failure,
