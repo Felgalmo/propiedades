@@ -21,7 +21,7 @@ def get_thermo_properties():
     print(f"Datos recibidos: {data}")
     
     refrigerant = data.get('refrigerant', 'R134a')
-    evap_temp = float(data.get('evap_temp', 263.15))  # -10°C por defecto
+    evap_temp = float(data.get('evap_temp', 243.15))  # -30°C por defecto
     cond_temp = float(data.get('cond_temp', 313.15))  # 40°C por defecto
     superheat = float(data.get('superheat', 0))
     subcooling = float(data.get('subcooling', 0))
@@ -34,32 +34,40 @@ def get_thermo_properties():
             raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} K, {t_max} K]")
 
         # Punto 1: Entrada al evaporador (líquido saturado después de la expansión)
-        p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
-        p1_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 0, refrigerant)
-        p1_temp = evap_temp
+        p1_pressure = CP.PropsSI('P', 'T', cond_temp - subcooling, 'Q', 0, refrigerant)  # Presión del condensador
+        p1_enthalpy = CP.PropsSI('H', 'T', cond_temp - subcooling, 'Q', 0, refrigerant)  # Entalpía líquida saturada o subenfriada
+        p1_temp = evap_temp  # Temperatura después de la expansión
 
-        # Punto 2: Salida del evaporador (vapor con superheat)
-        p2_pressure = p1_pressure  # Presión constante en el evaporador
-        p2_temp = evap_temp + superheat
-        p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
+        # Punto 2: Salida del evaporador (vapor saturado o sobrecalentado)
+        p2_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 1, refrigerant)  # Presión de vapor saturado
+        if superheat == 0:
+            p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)  # Vapor saturado
+            p2_temp = evap_temp
+        else:
+            p2_temp = evap_temp + superheat
+            p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)  # Vapor sobrecalentado
         s2 = CP.PropsSI('S', 'T', p2_temp, 'P', p2_pressure, refrigerant)
 
         # Punto 3: Salida del compresor (compresión isoentrópica)
-        p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 1, refrigerant)  # Presión de vapor saturado en condensador
+        p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 1, refrigerant)  # Presión del condensador
         p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'S', s2, refrigerant)
         p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
 
-        # Punto 4: Salida del condensador (líquido con subcooling)
-        p4_pressure = p3_pressure  # Presión constante en el condensador
-        p4_temp = cond_temp - subcooling
-        p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
+        # Punto 4: Salida del condensador (líquido saturado o subenfriado)
+        p4_pressure = p3_pressure
+        if subcooling == 0:
+            p4_enthalpy = CP.PropsSI('H', 'T', cond_temp, 'Q', 0, refrigerant)  # Líquido saturado
+            p4_temp = cond_temp
+        else:
+            p4_temp = cond_temp - subcooling
+            p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
 
         # Cálculo del COP
-        q_evap = p2_enthalpy - p1_enthalpy  # Calor absorbido en el evaporador
+        q_evap = p2_enthalpy - p1_enthalpy  # Calor absorbido
         w_comp = p3_enthalpy - p2_enthalpy  # Trabajo del compresor
         cop = q_evap / w_comp if w_comp != 0 else 0
 
-        # Datos de saturación ajustados al rango de temperaturas
+        # Datos de saturación
         num_points = 50
         temp_range = (cond_temp - evap_temp) * 1.5
         temp_min = evap_temp - temp_range * 0.25
@@ -69,7 +77,7 @@ def get_thermo_properties():
         for i in range(num_points):
             temp = temp_min + i * temp_step
             if temp < t_min or temp > t_max:
-                continue  # Saltar temperaturas fuera de rango
+                continue
             p_liquid = CP.PropsSI('P', 'T', temp, 'Q', 0, refrigerant)
             h_liquid = CP.PropsSI('H', 'T', temp, 'Q', 0, refrigerant)
             p_vapor = CP.PropsSI('P', 'T', temp, 'Q', 1, refrigerant)
