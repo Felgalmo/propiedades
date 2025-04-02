@@ -142,8 +142,7 @@
                 '3': { pressure: 0, enthalpy: 0, temperature: 0 },
                 '4': { pressure: 0, enthalpy: 0, temperature: 0 }
             },
-            saturation: { liquid: [], vapor: [] },
-            debug: {}
+            saturation: { liquid: [], vapor: [] }
         };
 
         async function loadRefrigerants() {
@@ -191,8 +190,7 @@
                     thermoData = data;
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
-                    updatePressures(); // Actualizar presiones inmediatamente
-                    console.log('Presiones - Baja:', thermoData.points['2'].pressure, 'Alta:', thermoData.points['3'].pressure);
+                    updatePressures();
                 } else {
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
@@ -220,8 +218,8 @@
             const presionAtm = getPresionAtmosferica(altura);
             const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
             const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
-            const presionBaja = P2 - presionAtm; // Presión manométrica baja
-            const presionAlta = P3 - presionAtm; // Presión manométrica alta
+            const presionBaja = P2 - presionAtm;
+            const presionAlta = P3 - presionAtm;
             const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
             const presionAltaPsi = (presionAlta * 14.7).toFixed(2);
 
@@ -232,8 +230,9 @@
         function updateThermo() {
             fetchThermoProperties().then(() => {
                 console.log('Datos actualizados, redibujando...');
-                drawCycle(); // Intentar animaciones (puede fallar)
-                drawPHDiagram(); // Dibujar gráfico directamente
+                drawCycle();
+                drawPHDiagram();
+                updatePressures();
             }).catch(error => {
                 console.error('Error al actualizar:', error);
             });
@@ -242,30 +241,22 @@
         function getPhase(point, pointId) {
             const pressure = point.pressure;
             const enthalpy = point.enthalpy;
-            const temperature = point.temperature;
 
             const saturationLiquid = thermoData.saturation.liquid.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.liquid[0];
             const saturationVapor = thermoData.saturation.vapor.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.vapor[0];
 
-            if (!saturationLiquid || !saturationVapor) {
-                return "Desconocido";
-            }
+            if (!saturationLiquid || !saturationVapor) return "Desconocido";
 
             const hLiquid = saturationLiquid.enthalpy;
             const hVapor = saturationVapor.enthalpy;
             const margin = 2000;
 
-            if (pointId === '2') {
-                if (thermoData.superheat === 0) return "Vapor Saturado";
-                else if (thermoData.superheat > 0) return "Vapor Sobrecalentado";
-            } else if (pointId === '4') {
-                if (thermoData.subcooling > 0) return "Líquido Subenfriado";
-                else if (thermoData.subcooling === 0) return "Líquido Saturado";
-            }
+            if (pointId === '2' && thermoData.superheat > 0) return "Vapor Sobrecalentado";
+            if (pointId === '4' && thermoData.subcooling > 0) return "Líquido Subenfriado";
 
             if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
             else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
-            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Vapor Saturado + Líquido Saturado";
+            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mezcla";
             else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
             else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
             return "Desconocido";
@@ -497,7 +488,6 @@
             function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
             function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
 
-            // Dibujar ejes
             phCtx.beginPath();
             phCtx.moveTo(marginX, marginY);
             phCtx.lineTo(marginX, marginY + plotHeight);
@@ -508,12 +498,9 @@
 
             phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            const pressureText = 'Presión (bar)';
-            phCtx.fillText(pressureText, marginX - 32.4, marginY - 10);
-            const enthalpyText = 'Entalpía (kJ/kg)';
-            phCtx.fillText(enthalpyText, marginX + plotWidth - 80, marginY + plotHeight + 15);
+            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
+            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
 
-            // Marcas de presión
             const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
             const numPressureTicks = 6;
@@ -528,7 +515,6 @@
                 phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
             }
 
-            // Marcas de entalpía
             const numEnthalpyTicks = 6;
             const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
             for (let i = 0; i < numEnthalpyTicks; i++) {
@@ -541,7 +527,6 @@
                 phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
             }
 
-            // Curvas de saturación
             if (thermoData.saturation.liquid.length > 0) {
                 phCtx.beginPath();
                 thermoData.saturation.liquid.forEach((point, index) => {
@@ -568,7 +553,6 @@
                 phCtx.stroke();
             }
 
-            // Puntos del ciclo
             const pointsPH = getPointsPH();
             if (pointsPH.length === 4) {
                 phCtx.beginPath();
@@ -644,7 +628,6 @@
                 animate();
             }).catch(error => {
                 console.error('Error al iniciar:', error);
-                drawPHDiagram();
                 animate();
             });
         });
