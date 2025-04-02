@@ -191,6 +191,7 @@
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
                     updatePressures();
+                    drawPHDiagram();
                 } else {
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
