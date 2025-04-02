@@ -33,41 +33,43 @@ def get_thermo_properties():
         if evap_temp < t_min or cond_temp > t_max:
             raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} K, {t_max} K]")
 
-        # Punto 1: Entrada al evaporador (salida de la expansión)
+        # Punto 1: Entrada al evaporador (líquido saturado después de la expansión)
         p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
         p1_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 0, refrigerant)
         p1_temp = evap_temp
 
-        # Punto 2: Salida del evaporador (entrada al compresor)
-        p2_pressure = p1_pressure
+        # Punto 2: Salida del evaporador (vapor con superheat)
+        p2_pressure = p1_pressure  # Presión constante en el evaporador
         p2_temp = evap_temp + superheat
         p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
         s2 = CP.PropsSI('S', 'T', p2_temp, 'P', p2_pressure, refrigerant)
 
-        # Punto 3: Salida del compresor (entrada al condensador)
-        p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 0, refrigerant)
+        # Punto 3: Salida del compresor (compresión isoentrópica)
+        p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 1, refrigerant)  # Presión de vapor saturado en condensador
         p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'S', s2, refrigerant)
         p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
 
-        # Punto 4: Salida del condensador (entrada a la expansión)
-        p4_pressure = p3_pressure
+        # Punto 4: Salida del condensador (líquido con subcooling)
+        p4_pressure = p3_pressure  # Presión constante en el condensador
         p4_temp = cond_temp - subcooling
         p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
 
         # Cálculo del COP
-        q_evap = p2_enthalpy - p1_enthalpy
-        w_comp = p3_enthalpy - p2_enthalpy
+        q_evap = p2_enthalpy - p1_enthalpy  # Calor absorbido en el evaporador
+        w_comp = p3_enthalpy - p2_enthalpy  # Trabajo del compresor
         cop = q_evap / w_comp if w_comp != 0 else 0
 
-        # Datos de saturación ajustados a las temperaturas introducidas
+        # Datos de saturación ajustados al rango de temperaturas
         num_points = 50
-        temp_range = (cond_temp - evap_temp) * 1.2
-        temp_min = evap_temp - temp_range * 0.2
-        temp_max = cond_temp + temp_range * 0.2
+        temp_range = (cond_temp - evap_temp) * 1.5
+        temp_min = evap_temp - temp_range * 0.25
+        temp_max = cond_temp + temp_range * 0.25
         temp_step = (temp_max - temp_min) / (num_points - 1)
         saturation_data = {'liquid': [], 'vapor': []}
         for i in range(num_points):
             temp = temp_min + i * temp_step
+            if temp < t_min or temp > t_max:
+                continue  # Saltar temperaturas fuera de rango
             p_liquid = CP.PropsSI('P', 'T', temp, 'Q', 0, refrigerant)
             h_liquid = CP.PropsSI('H', 'T', temp, 'Q', 0, refrigerant)
             p_vapor = CP.PropsSI('P', 'T', temp, 'Q', 1, refrigerant)
