@@ -420,12 +420,14 @@
             const rect = phCanvas.getBoundingClientRect();
             mouseX = event.clientX - rect.left;
             mouseY = event.clientY - rect.top;
+            drawPHDiagram(); // Redibujar para actualizar el tooltip
         });
 
         phCanvas.addEventListener('mouseout', () => {
             mouseX = -100;
             mouseY = -100;
             hoveredPoint = null;
+            drawPHDiagram(); // Redibujar sin tooltip
         });
 
         function getPointsPH() {
@@ -579,17 +581,19 @@
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 20) hoveredPoint = point.label;
+                    if (distance < 10) {  // Reducimos el radio para mayor precisión
+                        hoveredPoint = point.label;
+                    }
                 });
 
                 if (hoveredPoint) {
                     const point = pointsPH.find(p => p.label === hoveredPoint);
+                    const pointData = thermoData.points[hoveredPoint];
                     phCtx.font = '10px Arial';
                     phCtx.fillStyle = 'black';
-                    const lineHeight = 10;
+                    const lineHeight = 12;
                     const textX = point.x + 10;
                     const textY = point.y - 20;
-                    const pointData = thermoData.points[hoveredPoint];
                     const textLines = [
                         `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
                         `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
@@ -602,13 +606,21 @@
                     const boxWidth = textWidth + 2 * padding;
                     const boxHeight = lineHeight * textLines.length + 2 * padding;
 
+                    // Ajustar posición si se sale del canvas
+                    let adjustedTextX = textX;
+                    let adjustedTextY = textY;
+                    if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
+                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight + 10;
+
                     phCtx.fillStyle = 'white';
-                    phCtx.fillRect(textX - padding, textY - padding - lineHeight, boxWidth, boxHeight);
+                    phCtx.fillRect(adjustedTextX - padding, adjustedTextY - padding - lineHeight, boxWidth, boxHeight);
 
                     phCtx.fillStyle = 'black';
                     textLines.forEach((line, index) => {
-                        phCtx.fillText(line, textX, textY + index * lineHeight);
+                        phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
                     });
+                } else {
+                    hoveredPoint = null; // Resetear si no está sobre un punto
                 }
             }
         }
