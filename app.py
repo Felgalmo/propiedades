@@ -22,7 +22,7 @@ def get_refrigerants():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 def interpolate_property(df_ref, temp, property_name):
-    """Interpolar una propiedad termodinámica desde el CSV sin numpy"""
+    """Interpolar una propiedad termodinámica desde el CSV"""
     temps = df_ref['Temperatura (°C)'].tolist()
     values = df_ref[property_name].tolist()
     
@@ -37,6 +37,39 @@ def interpolate_property(df_ref, temp, property_name):
     if temp > temps[-1]:
         return values[-1]
     raise ValueError(f"No se pudo interpolar {property_name} para T={temp}°C")
+
+def interpolate_by_entropy_and_pressure(df_ref, entropy, pressure, property_name):
+    """Interpolar una propiedad (h o T) usando entropía y presión"""
+    entropies = df_ref['Entropía Vapor (kJ/kg·K)'].tolist()
+    pressures = (df_ref['Presión Rocío (bar)'] * 1e5).tolist()  # Convertir a Pa
+    values = df_ref[property_name].tolist()
+    
+    # Encontrar los puntos más cercanos en presión y entropía
+    for i in range(len(pressures) - 1):
+        if pressures[i] <= pressure <= pressures[i + 1]:
+            for j in range(len(entropies) - 1):
+                if entropies[j] <= entropy <= entropies[j + 1]:
+                    # Interpolación simple entre los puntos cercanos
+                    s0, s1 = entropies[j], entropies[j + 1]
+                    p0, p1 = pressures[i], pressures[i + 1]
+                    v0, v1 = values[j], values[j + 1]
+                    # Primero interpolamos por entropía en p0
+                    if s1 != s0:  # Evitar división por cero
+                        v_at_p0 = v0 + (v1 - v0) * (entropy - s0) / (s1 - s0)
+                    else:
+                        v_at_p0 = v0
+                    # Ahora por presión (simplificado, asumimos presión lineal)
+                    if p1 != p0:  # Evitar división por cero
+                        return v_at_p0 + (v1 - v_at_p0) * (pressure - p0) / (p1 - p0)
+                    else:
+                        return v_at_p0
+    
+    # Si está fuera del rango, devolver el valor más cercano
+    if entropy < entropies[0]:
+        return values[0]
+    if entropy > entropies[-1]:
+        return values[-1]
+    raise ValueError(f"No se pudo interpolar {property_name} para s={entropy}, p={pressure}")
 
 @app.route('/thermo', methods=['POST'])
 def get_thermo_properties():
@@ -73,7 +106,7 @@ def get_thermo_properties():
 
             # Punto 1: Entrada al evaporador (expansión isoentálpica)
             p1_pressure = interpolate_property(df_ref, evap_temp_c, 'Presión Burbuja (bar)') * 1e5
-            p1_enthalpy = p4_enthalpy  # ¡Aseguramos que h1 = h4!
+            p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
 
             # Punto 2: Salida del evaporador
@@ -86,12 +119,13 @@ def get_thermo_properties():
                 h_sat_vapor = interpolate_property(df_ref, evap_temp_c, 'Entalpía Vapor (kJ/kg)')
                 cp_vapor = 0.9
                 p2_enthalpy = (h_sat_vapor + cp_vapor * superheat) * 1e3
-            s2 = interpolate_property(df_ref, evap_temp_c, 'Entropía Vapor (kJ/kg·K)') * 1e3
+            s2 = interpolate_property(df_ref, evap_temp_c, 'Entropía Vapor (kJ/kg·K)') * 1e3  # Entropía en J/kg·K
 
-            # Punto 3: Salida del compresor
+            # Punto 3: Salida del compresor (compresión isoentrópica, s3 = s2)
             p3_pressure = p4_pressure
-            p3_enthalpy = p2_enthalpy + (p4_pressure - p2_pressure) * 0.1  # Aproximación simple
-            p3_temp = p2_temp + 20  # Aproximación
+            s3 = s2  # Entropía igual a la de P2
+            p3_enthalpy = interpolate_by_entropy_and_pressure(df_ref, s3 / 1e3, p3_pressure, 'Entalpía Vapor (kJ/kg)') * 1e3  # Convertir s a kJ/kg·K para interpolar
+            p3_temp = interpolate_by_entropy_and_pressure(df_ref, s3 / 1e3, p3_pressure, 'Temperatura (°C)') + 273.15  # En K
 
             q_evap = p2_enthalpy - p1_enthalpy
             w_comp = p3_enthalpy - p2_enthalpy
@@ -127,7 +161,7 @@ def get_thermo_properties():
                 p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
 
             p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
-            p1_enthalpy = p4_enthalpy  # ¡Aseguramos que h1 = h4!
+            p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
 
             p2_pressure = p1_pressure
