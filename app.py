@@ -38,39 +38,6 @@ def interpolate_property(df_ref, temp, property_name):
         return values[-1]
     raise ValueError(f"No se pudo interpolar {property_name} para T={temp}°C")
 
-def interpolate_by_entropy_and_pressure(df_ref, entropy, pressure, property_name):
-    """Interpolar una propiedad (h o T) usando entropía y presión"""
-    entropies = df_ref['Entropía Vapor (kJ/kg·K)'].tolist()
-    pressures = (df_ref['Presión Rocío (bar)'] * 1e5).tolist()  # Convertir a Pa
-    values = df_ref[property_name].tolist()
-    
-    # Encontrar los puntos más cercanos en presión y entropía
-    for i in range(len(pressures) - 1):
-        if pressures[i] <= pressure <= pressures[i + 1]:
-            for j in range(len(entropies) - 1):
-                if entropies[j] <= entropy <= entropies[j + 1]:
-                    # Interpolación simple entre los puntos cercanos
-                    s0, s1 = entropies[j], entropies[j + 1]
-                    p0, p1 = pressures[i], pressures[i + 1]
-                    v0, v1 = values[j], values[j + 1]
-                    # Primero interpolamos por entropía en p0
-                    if s1 != s0:  # Evitar división por cero
-                        v_at_p0 = v0 + (v1 - v0) * (entropy - s0) / (s1 - s0)
-                    else:
-                        v_at_p0 = v0
-                    # Ahora por presión (simplificado, asumimos presión lineal)
-                    if p1 != p0:  # Evitar división por cero
-                        return v_at_p0 + (v1 - v_at_p0) * (pressure - p0) / (p1 - p0)
-                    else:
-                        return v_at_p0
-    
-    # Si está fuera del rango, devolver el valor más cercano
-    if entropy < entropies[0]:
-        return values[0]
-    if entropy > entropies[-1]:
-        return values[-1]
-    raise ValueError(f"No se pudo interpolar {property_name} para s={entropy}, p={pressure}")
-
 @app.route('/thermo', methods=['POST'])
 def get_thermo_properties():
     data = request.get_json()
@@ -93,7 +60,7 @@ def get_thermo_properties():
             if evap_temp_c < t_min or cond_temp_c > t_max:
                 raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} °C, {t_max} °C]")
 
-            # Punto 4: Salida del condensador
+            # Punto 4: Salida del condensador (líquido saturado o subenfriado)
             p4_pressure = interpolate_property(df_ref, cond_temp_c, 'Presión Rocío (bar)') * 1e5
             if subcooling == 0:
                 p4_enthalpy = interpolate_property(df_ref, cond_temp_c, 'Entalpía Líquido (kJ/kg)') * 1e3
@@ -101,7 +68,7 @@ def get_thermo_properties():
             else:
                 p4_temp = cond_temp - subcooling
                 h_sat = interpolate_property(df_ref, cond_temp_c, 'Entalpía Líquido (kJ/kg)')
-                cp_liquid = 1.5
+                cp_liquid = 1.5  # kJ/(kg·K)
                 p4_enthalpy = (h_sat - cp_liquid * subcooling) * 1e3
 
             # Punto 1: Entrada al evaporador (expansión isoentálpica)
@@ -109,7 +76,7 @@ def get_thermo_properties():
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
 
-            # Punto 2: Salida del evaporador
+            # Punto 2: Salida del evaporador (vapor saturado o sobrecalentado)
             p2_pressure = p1_pressure
             if superheat == 0:
                 p2_enthalpy = interpolate_property(df_ref, evap_temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3
@@ -117,20 +84,36 @@ def get_thermo_properties():
             else:
                 p2_temp = evap_temp + superheat
                 h_sat_vapor = interpolate_property(df_ref, evap_temp_c, 'Entalpía Vapor (kJ/kg)')
-                cp_vapor = 0.9
+                cp_vapor = 0.9  # kJ/(kg·K)
                 p2_enthalpy = (h_sat_vapor + cp_vapor * superheat) * 1e3
-            s2 = interpolate_property(df_ref, evap_temp_c, 'Entropía Vapor (kJ/kg·K)') * 1e3  # Entropía en J/kg·K
 
-            # Punto 3: Salida del compresor (compresión isoentrópica, s3 = s2)
+            # Punto 3: Salida del compresor (vapor sobrecalentado)
             p3_pressure = p4_pressure
-            s3 = s2  # Entropía igual a la de P2
-            p3_enthalpy = interpolate_by_entropy_and_pressure(df_ref, s3 / 1e3, p3_pressure, 'Entalpía Vapor (kJ/kg)') * 1e3  # Convertir s a kJ/kg·K para interpolar
-            p3_temp = interpolate_by_entropy_and_pressure(df_ref, s3 / 1e3, p3_pressure, 'Temperatura (°C)') + 273.15  # En K
+            
+            # Paso 1: Datos de entrada ya los tenemos (evap_temp, cond_temp, h1, h2, h4)
+            # Paso 2: Convertir temperaturas a Kelvin
+            t_evap_k = evap_temp  # Ya en K
+            t_cond_k = cond_temp  # Ya en K
+            
+            # Paso 3: Calcular COP ideal (Carnot)
+            cop_ideal = t_evap_k / (t_cond_k - t_evap_k)
+            
+            # Paso 4: Ajustar COP real (80% del ideal)
+            cop_real = cop_ideal * 0.8
+            
+            # Paso 5: Calcular h3
+            p3_enthalpy = p2_enthalpy + (p2_enthalpy - p4_enthalpy) / cop_real
+            
+            # Paso 6: Calcular t3
+            cp_vapor = 0.85  # kJ/(kg·K) como especificaste
+            p3_temp = p2_temp + (p3_enthalpy - p2_enthalpy) / (cp_vapor * 1e3)  # Convertir cp a J/(kg·K)
 
+            # Cálculos adicionales del ciclo
             q_evap = p2_enthalpy - p1_enthalpy
             w_comp = p3_enthalpy - p2_enthalpy
             cop = q_evap / w_comp if w_comp != 0 else 0
 
+            # Datos de saturación para la gráfica
             num_points = 50
             temp_range = (cond_temp_c - evap_temp_c) * 1.5
             temp_min = max(t_min, evap_temp_c - temp_range * 0.25)
