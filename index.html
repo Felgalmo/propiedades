@@ -420,14 +420,14 @@
             const rect = phCanvas.getBoundingClientRect();
             mouseX = event.clientX - rect.left;
             mouseY = event.clientY - rect.top;
-            drawPHDiagram(); // Redibujar para actualizar el tooltip
+            drawPHDiagram();
         });
 
         phCanvas.addEventListener('mouseout', () => {
             mouseX = -100;
             mouseY = -100;
             hoveredPoint = null;
-            drawPHDiagram(); // Redibujar sin tooltip
+            drawPHDiagram();
         });
 
         function getPointsPH() {
@@ -581,7 +581,7 @@
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 10) {  // Reducimos el radio para mayor precisión
+                    if (distance < 10) {
                         hoveredPoint = point.label;
                     }
                 });
@@ -606,7 +606,6 @@
                     const boxWidth = textWidth + 2 * padding;
                     const boxHeight = lineHeight * textLines.length + 2 * padding;
 
-                    // Ajustar posición si se sale del canvas
                     let adjustedTextX = textX;
                     let adjustedTextY = textY;
                     if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
@@ -620,7 +619,7 @@
                         phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
                     });
                 } else {
-                    hoveredPoint = null; // Resetear si no está sobre un punto
+                    hoveredPoint = null;
                 }
             }
         }
