@@ -14,9 +14,7 @@ custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 @app.route('/refrigerants', methods=['GET'])
 def get_refrigerants():
     try:
-        # Obtener TODOS los refrigerantes de CoolProp
         coolprop_refrigerants = CP.FluidsList()
-        # Combinar con nuestros refrigerantes personalizados
         refrigerants = sorted(list(set(coolprop_refrigerants + custom_refrigerants)))
         print("Refrigerantes soportados:", refrigerants[:10], "... (total:", len(refrigerants), ")")
         return jsonify({'status': 'success', 'refrigerants': refrigerants})
@@ -73,9 +71,9 @@ def get_thermo_properties():
                 cp_liquid = 1.5
                 p4_enthalpy = (h_sat - cp_liquid * subcooling) * 1e3
 
-            # Punto 1: Entrada al evaporador
+            # Punto 1: Entrada al evaporador (expansión isoentálpica)
             p1_pressure = interpolate_property(df_ref, evap_temp_c, 'Presión Burbuja (bar)') * 1e5
-            p1_enthalpy = p4_enthalpy
+            p1_enthalpy = p4_enthalpy  # ¡Aseguramos que h1 = h4!
             p1_temp = evap_temp
 
             # Punto 2: Salida del evaporador
@@ -129,7 +127,7 @@ def get_thermo_properties():
                 p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
 
             p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
-            p1_enthalpy = p4_enthalpy
+            p1_enthalpy = p4_enthalpy  # ¡Aseguramos que h1 = h4!
             p1_temp = evap_temp
 
             p2_pressure = p1_pressure
