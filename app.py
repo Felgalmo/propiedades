@@ -88,40 +88,44 @@ def get_thermo_properties():
                 cp_vapor = 0.9  # kJ/(kg·K)
                 p2_enthalpy = (h_sat_vapor + cp_vapor * superheat) * 1e3
 
-            # Punto 3: Salida del compresor (nuevo cálculo)
+            # Punto 3: Salida del compresor (ajustado)
             p3_pressure = p4_pressure
 
-            # Paso 1: Propiedades a la entrada del compresor (P2)
-            p_evap = p2_pressure  # Pa
-            h_entrada = p2_enthalpy  # J/kg
-            s_entrada = interpolate_property(df_ref, evap_temp_c, 'Entropía Vapor (kJ/kg·K)') * 1e3  # J/kg·K
-            t_entrada = p2_temp  # K (con superheat si aplica)
+            # Método anterior para h3 (COP ajustado)
+            t_evap_k = evap_temp
+            t_cond_k = cond_temp
+            cop_ideal = t_evap_k / (t_cond_k - t_evap_k)
+            cop_real = cop_ideal * 0.75  # Cambiado de 0.8 a 0.75
+            p3_enthalpy = p2_enthalpy + (p2_enthalpy - p4_enthalpy) / cop_real
 
-            # Paso 2: Propiedades a la presión de condensación (P4)
-            p_cond = p4_pressure  # Pa
-            h_g_cond = interpolate_property(df_ref, cond_temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3  # J/kg
+            # Cálculo de t3 con nuevo procedimiento
+            p_evap = p2_pressure
+            h_entrada = p2_enthalpy
+            t_entrada = p2_temp
+            p_cond = p4_pressure
+            h_g_cond = interpolate_property(df_ref, cond_temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3
 
-            # Paso 3: Temperatura ideal de salida (compresión isentrópica)
-            gamma = 1.15  # Razón de calores específicos aproximada
-            exponent = (gamma - 1) / gamma  # 0.1304
+            # Paso 3: Temperatura ideal de salida
+            gamma = 1.2  # Ajustado para Cp = 0.9
+            exponent = (gamma - 1) / gamma  # 0.1667
             pressure_ratio = p_cond / p_evap
-            t_salida_ideal = t_entrada * (pressure_ratio ** exponent)  # K
+            t_salida_ideal = t_entrada * (pressure_ratio ** exponent)
 
             # Paso 4: Cambio de entalpía isentrópico
-            cp_vapor = 0.85 * 1e3  # J/(kg·K)
-            delta_h_is = cp_vapor * (t_salida_ideal - t_entrada)  # J/kg
+            cp_vapor = 0.9 * 1e3  # J/(kg·K), cambiado de 0.85 a 0.9
+            delta_h_is = cp_vapor * (t_salida_ideal - t_entrada)
 
             # Paso 5: Ajuste con eficiencia real
-            eta_is = 0.85  # Eficiencia isentrópica
-            delta_h_real = delta_h_is / eta_is  # J/kg
+            eta_is = 0.85
+            delta_h_real = delta_h_is / eta_is
 
-            # Paso 6: Entalpía a la salida real
-            p3_enthalpy = h_entrada + delta_h_real  # J/kg
+            # Paso 6: Entalpía a la salida real (usamos el h3 del método COP)
+            # p3_enthalpy ya calculado arriba
 
             # Paso 7: Temperatura de salida con sobrecalentamiento
-            delta_h_sobrecalentamiento = p3_enthalpy - h_g_cond  # J/kg
-            delta_t_sobrecalentamiento = delta_h_sobrecalentamiento / cp_vapor  # K
-            p3_temp = cond_temp + delta_t_sobrecalentamiento  # K
+            delta_h_sobrecalentamiento = p3_enthalpy - h_g_cond
+            delta_t_sobrecalentamiento = delta_h_sobrecalentamiento / cp_vapor
+            p3_temp = cond_temp + delta_t_sobrecalentamiento
 
             # Cálculos adicionales del ciclo
             q_evap = p2_enthalpy - p1_enthalpy
