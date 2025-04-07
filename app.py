@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import CoolProp.CoolProp as CP
 import pandas as pd
+import math
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
@@ -76,7 +77,7 @@ def get_thermo_properties():
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
 
-            # Punto 2: Salida del evaporador (vapor saturado o sobrecalentado)
+            # Punto 2: Salida del evaporador (entrada al compresor)
             p2_pressure = p1_pressure
             if superheat == 0:
                 p2_enthalpy = interpolate_property(df_ref, evap_temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3
@@ -87,26 +88,40 @@ def get_thermo_properties():
                 cp_vapor = 0.9  # kJ/(kg·K)
                 p2_enthalpy = (h_sat_vapor + cp_vapor * superheat) * 1e3
 
-            # Punto 3: Salida del compresor (vapor sobrecalentado)
+            # Punto 3: Salida del compresor (nuevo cálculo)
             p3_pressure = p4_pressure
-            
-            # Paso 1: Datos de entrada ya los tenemos (evap_temp, cond_temp, h1, h2, h4)
-            # Paso 2: Convertir temperaturas a Kelvin
-            t_evap_k = evap_temp  # Ya en K
-            t_cond_k = cond_temp  # Ya en K
-            
-            # Paso 3: Calcular COP ideal (Carnot)
-            cop_ideal = t_evap_k / (t_cond_k - t_evap_k)
-            
-            # Paso 4: Ajustar COP real (80% del ideal)
-            cop_real = cop_ideal * 0.8
-            
-            # Paso 5: Calcular h3
-            p3_enthalpy = p2_enthalpy + (p2_enthalpy - p4_enthalpy) / cop_real
-            
-            # Paso 6: Calcular t3
-            cp_vapor = 0.85  # kJ/(kg·K) como especificaste
-            p3_temp = p2_temp + (p3_enthalpy - p2_enthalpy) / (cp_vapor * 1e3)  # Convertir cp a J/(kg·K)
+
+            # Paso 1: Propiedades a la entrada del compresor (P2)
+            p_evap = p2_pressure  # Pa
+            h_entrada = p2_enthalpy  # J/kg
+            s_entrada = interpolate_property(df_ref, evap_temp_c, 'Entropía Vapor (kJ/kg·K)') * 1e3  # J/kg·K
+            t_entrada = p2_temp  # K (con superheat si aplica)
+
+            # Paso 2: Propiedades a la presión de condensación (P4)
+            p_cond = p4_pressure  # Pa
+            h_g_cond = interpolate_property(df_ref, cond_temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3  # J/kg
+
+            # Paso 3: Temperatura ideal de salida (compresión isentrópica)
+            gamma = 1.15  # Razón de calores específicos aproximada
+            exponent = (gamma - 1) / gamma  # 0.1304
+            pressure_ratio = p_cond / p_evap
+            t_salida_ideal = t_entrada * (pressure_ratio ** exponent)  # K
+
+            # Paso 4: Cambio de entalpía isentrópico
+            cp_vapor = 0.85 * 1e3  # J/(kg·K)
+            delta_h_is = cp_vapor * (t_salida_ideal - t_entrada)  # J/kg
+
+            # Paso 5: Ajuste con eficiencia real
+            eta_is = 0.85  # Eficiencia isentrópica
+            delta_h_real = delta_h_is / eta_is  # J/kg
+
+            # Paso 6: Entalpía a la salida real
+            p3_enthalpy = h_entrada + delta_h_real  # J/kg
+
+            # Paso 7: Temperatura de salida con sobrecalentamiento
+            delta_h_sobrecalentamiento = p3_enthalpy - h_g_cond  # J/kg
+            delta_t_sobrecalentamiento = delta_h_sobrecalentamiento / cp_vapor  # K
+            p3_temp = cond_temp + delta_t_sobrecalentamiento  # K
 
             # Cálculos adicionales del ciclo
             q_evap = p2_enthalpy - p1_enthalpy
