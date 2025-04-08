@@ -324,7 +324,7 @@
 
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
-            cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
+            if (condenserImg.complete) cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
             const fanCenterX1 = condenserX + condenserWidth / 4, fanCenterY1 = condenserY + condenserHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle + (2 * Math.PI / 3));
@@ -336,7 +336,7 @@
 
             const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
             const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-            cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
+            if (evaporatorImg.complete) cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
             const fanCenterX3 = evaporatorX + evaporatorWidth / 4, fanCenterY3 = evaporatorY + evaporatorHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle + (2 * Math.PI / 3));
@@ -348,11 +348,11 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
+            if (compressorImg.complete) cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
 
             const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
             const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
+            if (expansionImg.complete) cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
 
             particles.forEach(particle => {
                 particle.move();
@@ -566,10 +566,11 @@
 
         function animate() {
             drawCycle();
-            fanAngle += 0.05;
+            fanAngle += 0.05; // Incremento para girar ventiladores
             requestAnimationFrame(animate);
         }
 
+        // Iniciar todo
         loadRefrigerants().then(() => {
             fetchThermoProperties();
             animate();
