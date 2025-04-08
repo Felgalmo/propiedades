@@ -44,23 +44,6 @@
         .control-row, .output-row {
             margin-bottom: 10px;
         }
-        /* Animación del flujo */
-        .refrigerant-flow {
-            stroke-dasharray: 10;
-            animation: flow 1.5s linear infinite;
-        }
-        @keyframes flow {
-            from { stroke-dashoffset: 0; }
-            to { stroke-dashoffset: -20; }
-        }
-        /* Animación de ventiladores */
-        .fan {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body>
@@ -250,31 +233,80 @@
             return "Desconocido";
         }
 
-        function drawFan(ctx, centerX, centerY, angle) {
+        class Particle {
+            constructor() { 
+                this.reset(); 
+                this.size = 4.2;
+                this.speed = 1.2 + Math.random() * 1.2;
+            }
+            reset() { 
+                this.x = x1; 
+                this.y = y1 + pipeThickness/2; 
+                this.segment = 8; 
+                this.distance = 0; 
+                this.offset = (Math.random() - 0.5) * (pipeThickness - this.size * 2); 
+            }
+            move() {
+                this.distance += this.speed;
+                switch(this.segment) {
+                    case 8: this.x = x1 + pipeThickness/2 + this.offset; this.y = y1 + pipeThickness/2 + this.distance; if (this.y >= y2/2) this.nextSegment(); break;
+                    case 7: this.x = x1 + pipeThickness/2 + this.offset; this.y = y2/2 + this.distance; if (this.y >= y2 - pipeThickness/2) this.nextSegment(); break;
+                    case 6: this.x = x1 + pipeThickness/2 + this.distance; this.y = y2 - pipeThickness/2 + this.offset; if (this.x >= x2/2) this.nextSegment(); break;
+                    case 5: this.x = x2/2 + this.distance; this.y = y2 - pipeThickness/2 + this.offset; if (this.x >= x2 - pipeThickness/2) this.nextSegment(); break;
+                    case 4: this.x = x2 - pipeThickness/2 + this.offset; this.y = y2 - pipeThickness/2 - this.distance; if (this.y <= y2/2) this.nextSegment(); break;
+                    case 3: this.x = x2 - pipeThickness/2 + this.offset; this.y = y2/2 - this.distance; if (this.y <= y1 + pipeThickness/2) this.nextSegment(); break;
+                    case 2: this.x = x2 - pipeThickness/2 - this.distance; this.y = y1 + pipeThickness/2 + this.offset; if (this.x <= x2/2) this.nextSegment(); break;
+                    case 1: this.x = x2/2 - this.distance; this.y = y1 + pipeThickness/2 + this.offset; if (this.x <= x1 + pipeThickness/2) this.reset(); break;
+                }
+            }
+            nextSegment() {
+                this.segment--; 
+                this.distance = 0;
+                switch(this.segment) {
+                    case 7: this.x = x1 + pipeThickness/2 + this.offset; this.y = y2/2; break;
+                    case 6: this.x = x1 + pipeThickness/2; this.y = y2 - pipeThickness/2 + this.offset; break;
+                    case 5: this.x = x2/2; this.y = y2 - pipeThickness/2 + this.offset; break;
+                    case 4: this.x = x2 - pipeThickness/2 + this.offset; this.y = y2 - pipeThickness/2; break;
+                    case 3: this.x = x2 - pipeThickness/2 + this.offset; this.y = y2/2; break;
+                    case 2: this.x = x2 - pipeThickness/2; this.y = y1 + pipeThickness/2 + this.offset; break;
+                    case 1: this.x = x2/2; this.y = y1 + pipeThickness/2 + this.offset; break;
+                }
+            }
+            draw() {
+                cycleCtx.beginPath();
+                cycleCtx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                switch(this.segment) {
+                    case 1: case 8: cycleCtx.fillStyle = 'orange'; break;
+                    case 7: case 6: cycleCtx.fillStyle = 'darkblue'; break;
+                    case 5: case 4: cycleCtx.fillStyle = 'lightblue'; break;
+                    case 3: case 2: cycleCtx.fillStyle = 'red'; break;
+                }
+                cycleCtx.fill();
+            }
+        }
+
+        const particles = [];
+        for (let i = 0; i < 15; i++) {
+            particles.push(new Particle());
+            for (let j = 0; j < i * 12; j++) particles[i].move();
+        }
+
+        function drawFanBlade(ctx, centerX, centerY, angle) {
             ctx.save();
             ctx.translate(centerX, centerY);
             ctx.rotate(angle);
             ctx.beginPath();
-            ctx.arc(0, 0, fanRadius, 0, Math.PI * 2);
-            ctx.strokeStyle = '#666';
-            ctx.lineWidth = 2;
-            ctx.stroke();
-            for (let i = 0; i < 4; i++) {
-                ctx.beginPath();
-                ctx.moveTo(0, 0);
-                ctx.lineTo(fanRadius * 0.8, 0);
-                ctx.strokeStyle = '#999';
-                ctx.lineWidth = 4;
-                ctx.stroke();
-                ctx.rotate(Math.PI / 2);
-            }
+            ctx.moveTo(0, 0);
+            ctx.lineTo(fanRadius, fanRadius / 2);
+            ctx.lineTo(fanRadius, -fanRadius / 2);
+            ctx.closePath();
+            ctx.fillStyle = 'gray';
+            ctx.fill();
             ctx.restore();
         }
 
         function drawCycle() {
             cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
-
-            // Tuberías base
             cycleCtx.beginPath();
             cycleCtx.lineWidth = pipeThickness;
             cycleCtx.strokeStyle = '#43464B';
@@ -285,53 +317,6 @@
             cycleCtx.lineTo(x1 + pipeThickness/2, y1 + pipeThickness/2);
             cycleCtx.stroke();
 
-            // Flujo de refrigerante animado
-            const midX = (x1 + x2) / 2;
-            const midY = (y1 + y2) / 2;
-
-            // Segmento 1-2 (Evaporador a Compresor)
-            cycleCtx.beginPath();
-            cycleCtx.moveTo(midX, y2 - pipeThickness/2);
-            cycleCtx.lineTo(x2 - pipeThickness/2, midY);
-            cycleCtx.strokeStyle = 'darkblue';
-            cycleCtx.lineWidth = pipeThickness - 4;
-            cycleCtx.setLineDash([10, 10]);
-            cycleCtx.stroke();
-            cycleCtx.setLineDash([]);
-
-            // Segmento 2-3 (Compresor a Condensador)
-            cycleCtx.beginPath();
-            cycleCtx.moveTo(x2 - pipeThickness/2, midY);
-            cycleCtx.lineTo(x2 - pipeThickness/2, y1 + pipeThickness/2);
-            cycleCtx.lineTo(midX, y1 + pipeThickness/2);
-            cycleCtx.strokeStyle = 'red';
-            cycleCtx.lineWidth = pipeThickness - 4;
-            cycleCtx.setLineDash([10, 10]);
-            cycleCtx.stroke();
-            cycleCtx.setLineDash([]);
-
-            // Segmento 3-4 (Condensador a Válvula)
-            cycleCtx.beginPath();
-            cycleCtx.moveTo(midX, y1 + pipeThickness/2);
-            cycleCtx.lineTo(x1 + pipeThickness/2, midY);
-            cycleCtx.strokeStyle = 'orange';
-            cycleCtx.lineWidth = pipeThickness - 4;
-            cycleCtx.setLineDash([10, 10]);
-            cycleCtx.stroke();
-            cycleCtx.setLineDash([]);
-
-            // Segmento 4-1 (Válvula a Evaporador)
-            cycleCtx.beginPath();
-            cycleCtx.moveTo(x1 + pipeThickness/2, midY);
-            cycleCtx.lineTo(x1 + pipeThickness/2, y2 - pipeThickness/2);
-            cycleCtx.lineTo(midX, y2 - pipeThickness/2);
-            cycleCtx.strokeStyle = 'lightblue';
-            cycleCtx.lineWidth = pipeThickness - 4;
-            cycleCtx.setLineDash([10, 10]);
-            cycleCtx.stroke();
-            cycleCtx.setLineDash([]);
-
-            // Componentes
             const condenserWidth = 120, condenserHeight = 60;
             const evaporatorWidth = 120, evaporatorHeight = 60;
             const compressorWidth = 72, compressorHeight = 72;
@@ -340,14 +325,26 @@
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
             if (condenserImg.complete) cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
-            drawFan(cycleCtx, condenserX + condenserWidth / 4, condenserY + condenserHeight / 2, fanAngle);
-            drawFan(cycleCtx, condenserX + 3 * condenserWidth / 4, condenserY + condenserHeight / 2, fanAngle);
+            const fanCenterX1 = condenserX + condenserWidth / 4, fanCenterY1 = condenserY + condenserHeight / 2;
+            drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle);
+            drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle + (2 * Math.PI / 3));
+            drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle + (4 * Math.PI / 3));
+            const fanCenterX2 = condenserX + 3 * condenserWidth / 4, fanCenterY2 = condenserY + condenserHeight / 2;
+            drawFanBlade(cycleCtx, fanCenterX2, fanCenterY2, fanAngle);
+            drawFanBlade(cycleCtx, fanCenterX2, fanCenterY2, fanAngle + (2 * Math.PI / 3));
+            drawFanBlade(cycleCtx, fanCenterX2, fanCenterY2, fanAngle + (4 * Math.PI / 3));
 
             const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
             const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
             if (evaporatorImg.complete) cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
-            drawFan(cycleCtx, evaporatorX + evaporatorWidth / 4, evaporatorY + evaporatorHeight / 2, fanAngle);
-            drawFan(cycleCtx, evaporatorX + 3 * evaporatorWidth / 4, evaporatorY + evaporatorHeight / 2, fanAngle);
+            const fanCenterX3 = evaporatorX + evaporatorWidth / 4, fanCenterY3 = evaporatorY + evaporatorHeight / 2;
+            drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle);
+            drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle + (2 * Math.PI / 3));
+            drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle + (4 * Math.PI / 3));
+            const fanCenterX4 = evaporatorX + 3 * evaporatorWidth / 4, fanCenterY4 = evaporatorY + evaporatorHeight / 2;
+            drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle);
+            drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle + (2 * Math.PI / 3));
+            drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle + (4 * Math.PI / 3));
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
@@ -356,6 +353,11 @@
             const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
             const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
             if (expansionImg.complete) cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
+
+            particles.forEach(particle => {
+                particle.move();
+                particle.draw();
+            });
         }
 
         let mouseX = -100, mouseY = -100;
@@ -442,12 +444,137 @@
             phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
             phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
 
-            const 
-   
-logMinP = Math.log(minP);
+            const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
             const numPressureTicks = 6;
             for (let i = 0; i < numPressureTicks; i++) {
                 const logP = logMinP + (logMaxP - logMinP) * i / (numPressureTicks - 1);
                 const p = Math.exp(logP);
-                const y
+                const y = scaleY(p);
+                phCtx.beginPath();
+                phCtx.moveTo(marginX - 5.4, y);
+                phCtx.lineTo(marginX + 5.4, y);
+                phCtx.stroke();
+                phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
+            }
+
+            const numEnthalpyTicks = 6;
+            const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
+            for (let i = 0; i < numEnthalpyTicks; i++) {
+                const h = minH + i * hStep;
+                const x = scaleX(h);
+                phCtx.beginPath();
+                phCtx.moveTo(x, marginY + plotHeight - 5.4);
+                phCtx.lineTo(x, marginY + plotHeight + 5.4);
+                phCtx.stroke();
+                phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
+            }
+
+            if (thermoData.saturation.liquid.length > 0) {
+                phCtx.beginPath();
+                thermoData.saturation.liquid.forEach((point, index) => {
+                    const x = scaleX(point.enthalpy);
+                    const y = scaleY(point.pressure);
+                    if (index === 0) phCtx.moveTo(x, y);
+                    else phCtx.lineTo(x, y);
+                });
+                phCtx.strokeStyle = 'green';
+                phCtx.lineWidth = 1.62;
+                phCtx.stroke();
+            }
+
+            if (thermoData.saturation.vapor.length > 0) {
+                phCtx.beginPath();
+                thermoData.saturation.vapor.forEach((point, index) => {
+                    const x = scaleX(point.enthalpy);
+                    const y = scaleY(point.pressure);
+                    if (index === 0) phCtx.moveTo(x, y);
+                    else phCtx.lineTo(x, y);
+                });
+                phCtx.strokeStyle = 'purple';
+                phCtx.lineWidth = 1.62;
+                phCtx.stroke();
+            }
+
+            const pointsPH = getPointsPH();
+            if (pointsPH.length === 4) {
+                phCtx.beginPath();
+                pointsPH.forEach((point, index) => {
+                    if (index === 0) phCtx.moveTo(point.x, point.y);
+                    else phCtx.lineTo(point.x, point.y);
+                });
+                phCtx.lineTo(pointsPH[0].x, pointsPH[0].y);
+                phCtx.strokeStyle = 'blue';
+                phCtx.lineWidth = 2.16;
+                phCtx.stroke();
+
+                pointsPH.forEach(point => {
+                    phCtx.beginPath();
+                    phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
+                    phCtx.fillStyle = 'red';
+                    phCtx.fill();
+                    phCtx.font = '12.6px Arial';
+                    phCtx.fillStyle = 'black';
+                    const tempC = (point.temp - 273.15).toFixed(1);
+                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
+
+                    const dx = mouseX - point.x;
+                    const dy = mouseY - point.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 10) hoveredPoint = point.label;
+                });
+
+                if (hoveredPoint) {
+                    const point = pointsPH.find(p => p.label === hoveredPoint);
+                    const pointData = thermoData.points[hoveredPoint];
+                    phCtx.font = '10px Arial';
+                    phCtx.fillStyle = 'black';
+                    const lineHeight = 12;
+                    const textX = point.x + 10;
+                    const textY = point.y - 20;
+                    const textLines = [
+                        `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
+                        `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
+                        `h${hoveredPoint} = ${(pointData.enthalpy / 1000).toFixed(1)} kJ/kg`,
+                        `${getPhase(pointData, hoveredPoint)}`
+                    ];
+
+                    const padding = 5;
+                    const textWidth = Math.max(...textLines.map(line => phCtx.measureText(line).width));
+                    const boxWidth = textWidth + 2 * padding;
+                    const boxHeight = lineHeight * textLines.length + 2 * padding;
+
+                    let adjustedTextX = textX;
+                    let adjustedTextY = textY;
+                    if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
+                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight + 10;
+
+                    phCtx.fillStyle = 'white';
+                    phCtx.fillRect(adjustedTextX - padding, adjustedTextY - padding - lineHeight, boxWidth, boxHeight);
+
+                    phCtx.fillStyle = 'black';
+                    textLines.forEach((line, index) => {
+                        phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
+                    });
+                } else {
+                    hoveredPoint = null;
+                }
+            } else {
+                console.error('Puntos PH incompletos:', pointsPH);
+            }
+        }
+
+        function animate() {
+            drawCycle();
+            fanAngle += 0.05; // Incremento para girar ventiladores
+            requestAnimationFrame(animate);
+        }
+
+        // Iniciar todo
+        loadRefrigerants().then(() => {
+            fetchThermoProperties();
+            animate();
+        });
+    </script>
+</body>
+</html>
