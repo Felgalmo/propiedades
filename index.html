@@ -111,11 +111,6 @@
         const fanRadius = 24;
         let fanAngle = 0;
 
-        const condenserImg = new Image(); condenserImg.src = 'condensadordef.png';
-        const evaporatorImg = new Image(); evaporatorImg.src = 'evaporadordef.png';
-        const compressorImg = new Image(); compressorImg.src = 'compressor.png';
-        const expansionImg = new Image(); expansionImg.src = 'expansionsimulador.png';
-
         let thermoData = {
             refrigerant: 'R134a',
             evap_temp: 243.15,
@@ -134,7 +129,7 @@
 
         async function loadRefrigerants() {
             try {
-                const response = await fetch('/refrigerants');
+                const response = await fetch('http://localhost:5000/refrigerants');
                 const data = await response.json();
                 if (data.status === 'success') {
                     refrigerantSelect.innerHTML = '';
@@ -151,6 +146,7 @@
                 }
             } catch (error) {
                 console.error('Error al conectar con /refrigerants:', error);
+                alert('No se pudo conectar al servidor para cargar refrigerantes');
             }
         }
 
@@ -161,7 +157,7 @@
             const subcooling = parseFloat(subcoolingInput.value);
 
             try {
-                const response = await fetch('/thermo', {
+                const response = await fetch('http://localhost:5000/thermo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -185,7 +181,7 @@
                 }
             } catch (error) {
                 console.error('Error al conectar con /thermo:', error);
-                alert('No se pudo conectar al servidor');
+                alert('No se pudo conectar al servidor para calcular propiedades');
             }
         }
 
@@ -324,7 +320,9 @@
 
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
-            if (condenserImg.complete) cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
+            cycleCtx.fillStyle = '#666';
+            cycleCtx.fillRect(condenserX, condenserY, condenserWidth, condenserHeight);
+            
             const fanCenterX1 = condenserX + condenserWidth / 4, fanCenterY1 = condenserY + condenserHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle + (2 * Math.PI / 3));
@@ -336,7 +334,9 @@
 
             const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
             const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-            if (evaporatorImg.complete) cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
+            cycleCtx.fillStyle = '#666';
+            cycleCtx.fillRect(evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
+            
             const fanCenterX3 = evaporatorX + evaporatorWidth / 4, fanCenterY3 = evaporatorY + evaporatorHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle + (2 * Math.PI / 3));
@@ -348,11 +348,13 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImg.complete) cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
+            cycleCtx.fillStyle = '#444';
+            cycleCtx.fillRect(compressorX, compressorY, compressorWidth, compressorHeight);
 
             const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
             const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            if (expansionImg.complete) cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
+            cycleCtx.fillStyle = '#444';
+            cycleCtx.fillRect(expansionX, expansionY, expansionWidth, expansionHeight);
 
             particles.forEach(particle => {
                 particle.move();
@@ -559,21 +561,20 @@
                 } else {
                     hoveredPoint = null;
                 }
-            } else {
-                console.error('Puntos PH incompletos:', pointsPH);
             }
         }
 
         function animate() {
             drawCycle();
-            fanAngle += 0.05; // Incremento para girar ventiladores
+            fanAngle += 0.05;
             requestAnimationFrame(animate);
         }
 
         // Iniciar todo
         loadRefrigerants().then(() => {
-            fetchThermoProperties();
-            animate();
+            fetchThermoProperties().then(() => {
+                animate();
+            });
         });
     </script>
 </body>
