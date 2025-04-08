@@ -121,3 +121,104 @@ def get_thermo_properties():
             delta_h_sobrecalentamiento = p3_enthalpy - h_g_cond  # Δh = h_salida - h_g
             delta_t_sobrecalentamiento = delta_h_sobrecalentamiento / cp_vapor
             p3_temp = cond_temp + delta_t_sobrecalentamiento  # K
+
+            # Cálculos adicionales del ciclo
+            q_evap = p2_enthalpy - p1_enthalpy
+            w_comp = p3_enthalpy - p2_enthalpy
+            cop = q_evap / w_comp if w_comp != 0 else 0
+
+            # Datos de saturación para la gráfica
+            num_points = 50
+            temp_range = (cond_temp_c - evap_temp_c) * 1.5
+            temp_min = max(t_min, evap_temp_c - temp_range * 0.25)
+            temp_max = min(t_max, cond_temp_c + temp_range * 0.25)
+            temp_step = (temp_max - temp_min) / (num_points - 1)
+            saturation_data = {'liquid': [], 'vapor': []}
+            for i in range(num_points):
+                temp_c = temp_min + i * temp_step
+                p_liquid = interpolate_property(df_ref, temp_c, 'Presión Burbuja (bar)') * 1e5
+                h_liquid = interpolate_property(df_ref, temp_c, 'Entalpía Líquido (kJ/kg)') * 1e3
+                p_vapor = interpolate_property(df_ref, temp_c, 'Presión Rocío (bar)') * 1e5
+                h_vapor = interpolate_property(df_ref, temp_c, 'Entalpía Vapor (kJ/kg)') * 1e3
+                saturation_data['liquid'].append({'temperature': temp_c, 'pressure': p_liquid, 'enthalpy': h_liquid})
+                saturation_data['vapor'].append({'temperature': temp_c, 'pressure': p_vapor, 'enthalpy': h_vapor})
+
+        else:
+            t_min = CP.PropsSI('Tmin', refrigerant)
+            t_max = CP.PropsSI('Tcrit', refrigerant)
+            if evap_temp < t_min or cond_temp > t_max:
+                raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} K, {t_max} K]")
+
+            p4_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 1, refrigerant)
+            if subcooling == 0:
+                p4_enthalpy = CP.PropsSI('H', 'T', cond_temp, 'Q', 0, refrigerant)
+                p4_temp = cond_temp
+            else:
+                p4_temp = cond_temp - subcooling
+                p4_enthalpy = CP.PropsSI('H', 'T', p4_temp, 'P', p4_pressure, refrigerant)
+
+            p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
+            p1_enthalpy = p4_enthalpy
+            p1_temp = evap_temp
+
+            p2_pressure = p1_pressure
+            if superheat == 0:
+                p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)
+                p2_temp = evap_temp
+            else:
+                p2_temp = evap_temp + superheat
+                p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
+            s2 = CP.PropsSI('S', 'H', p2_enthalpy, 'P', p2_pressure, refrigerant)
+
+            p3_pressure = p4_pressure
+            p3_enthalpy = CP.PropsSI('H', 'P', p3_pressure, 'S', s2, refrigerant)
+            p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'H', p3_enthalpy, refrigerant)
+
+            q_evap = p2_enthalpy - p1_enthalpy
+            w_comp = p3_enthalpy - p2_enthalpy
+            cop = q_evap / w_comp if w_comp != 0 else 0
+
+            num_points = 50
+            temp_range = (cond_temp - evap_temp) * 1.5
+            temp_min = max(t_min, evap_temp - temp_range * 0.25)
+            temp_max = min(t_max, cond_temp + temp_range * 0.25)
+            temp_step = (temp_max - temp_min) / (num_points - 1)
+            saturation_data = {'liquid': [], 'vapor': []}
+            for i in range(num_points):
+                temp = temp_min + i * temp_step
+                p_liquid = CP.PropsSI('P', 'T', temp, 'Q', 0, refrigerant)
+                h_liquid = CP.PropsSI('H', 'T', temp, 'Q', 0, refrigerant)
+                p_vapor = CP.PropsSI('P', 'T', temp, 'Q', 1, refrigerant)
+                h_vapor = CP.PropsSI('H', 'T', temp, 'Q', 1, refrigerant)
+                saturation_data['liquid'].append({'temperature': temp - 273.15, 'pressure': p_liquid, 'enthalpy': h_liquid})
+                saturation_data['vapor'].append({'temperature': temp - 273.15, 'pressure': p_vapor, 'enthalpy': h_vapor})
+
+        response = {
+            'status': 'success',
+            'refrigerant': refrigerant,
+            'evap_temp': evap_temp,
+            'cond_temp': cond_temp,
+            'superheat': superheat,
+            'subcooling': subcooling,
+            'cop': cop,
+            'points': {
+                '1': {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': p1_temp},
+                '2': {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': p2_temp},
+                '3': {'pressure': p3_pressure, 'enthalpy': p3_enthalpy, 'temperature': p3_temp},
+                '4': {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': p4_temp}
+            },
+            'saturation': saturation_data
+        }
+        print("Respuesta enviada al frontend:", response)
+        return jsonify(response)
+    except Exception as e:
+        print(f"Error en cálculo: {str(e)}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/')
+def serve_index():
+    print("Sirviendo index.html")
+    return send_from_directory('.', 'index.html')
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
