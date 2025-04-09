@@ -98,67 +98,23 @@ def get_thermo_properties():
 
         else:
             # Usar CoolProp para otros refrigerantes
-            p2_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 1, refrigerant)  # Vapor saturado
+            p2_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 1, refrigerant)  # Presión vapor saturado
             p1_pressure = p2_pressure
-            p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 0, refrigerant)  # Líquido saturado
+            p3_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 0, refrigerant)  # Presión líquido saturado
             p4_pressure = p3_pressure
 
-            p1_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 0, refrigerant)  # Líquido saturado en evaporador
+            p1_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 0, refrigerant)  # Entalpía líquido saturado
+            
             if superheat == 0:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)  # Vapor saturado
+                s2 = CP.PropsSI('S', 'T', evap_temp, 'Q', 1, refrigerant)  # Entropía vapor saturado
             else:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)  # Vapor sobrecalentado
+                s2 = CP.PropsSI('S', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)
             
-            s2 = CP.PropsSI('S', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)
             try:
                 p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'S', s2, refrigerant)  # Compresión isoentrópica
                 p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
             except:
                 p3_temp = cond_temp  # Fallback
-                p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
-            
-            p4_enthalpy = CP.PropsSI('H', 'T', cond_temp - subcooling, 'P', p4_pressure, refrigerant)  # Líquido subenfriado
-            p1_enthalpy = p4_enthalpy  # Expansión isoentálpica
-
-            cop = (p2_enthalpy - p1_enthalpy) / (p3_enthalpy - p2_enthalpy)
-
-            t_min = CP.PropsSI('Tmin', refrigerant)
-            t_max = CP.PropsSI('Tcrit', refrigerant)
-            num_points = 50
-            temp_step = (t_max - t_min) / (num_points - 1)
-            saturation_data = {'liquid': [], 'vapor': []}
-            for i in range(num_points):
-                temp = t_min + i * temp_step
-                p_liquid = CP.PropsSI('P', 'T', temp, 'Q', 0, refrigerant)
-                h_liquid = CP.PropsSI('H', 'T', temp, 'Q', 0, refrigerant)
-                p_vapor = CP.PropsSI('P', 'T', temp, 'Q', 1, refrigerant)
-                h_vapor = CP.PropsSI('H', 'T', temp, 'Q', 1, refrigerant)
-                saturation_data['liquid'].append({'temperature': temp - 273.15, 'pressure': p_liquid, 'enthalpy': h_liquid})
-                saturation_data['vapor'].append({'temperature': temp - 273.15, 'pressure': p_vapor, 'enthalpy': h_vapor})
-
-        response = {
-            'status': 'success',
-            'refrigerant': refrigerant,
-            'evap_temp': evap_temp,
-            'cond_temp': cond_temp,
-            'superheat': superheat,
-            'subcooling': subcooling,
-            'cop': cop,
-            'points': {
-                '1': {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': evap_temp},
-                '2': {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': evap_temp + superheat},
-                '3': {'pressure': p3_pressure, 'enthalpy': p3_enthalpy, 'temperature': p3_temp},
-                '4': {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': cond_temp - subcooling}
-            },
-            'saturation': saturation_data
-        }
-        return jsonify(response)
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/')
-def serve_index():
-    return send_from_directory('.', 'index.html')
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+                p
