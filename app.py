@@ -104,18 +104,21 @@ def get_thermo_properties():
             p4_pressure = p3_pressure
 
             p1_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 0, refrigerant)  # Líquido saturado en evaporador
-            p2_enthalpy = CP.PropsSI('H', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)  # Vapor sobrecalentado
+            if superheat == 0:
+                p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)  # Vapor saturado
+            else:
+                p2_enthalpy = CP.PropsSI('H', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)  # Vapor sobrecalentado
+            
             s2 = CP.PropsSI('S', 'T', evap_temp + superheat, 'P', p2_pressure, refrigerant)
             try:
                 p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'S', s2, refrigerant)  # Compresión isoentrópica
                 p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
             except:
-                p3_temp = cond_temp  # Fallback si falla la isoentrópica
+                p3_temp = cond_temp  # Fallback
                 p3_enthalpy = CP.PropsSI('H', 'T', p3_temp, 'P', p3_pressure, refrigerant)
-            p4_enthalpy = CP.PropsSI('H', 'T', cond_temp - subcooling, 'P', p4_pressure, refrigerant)  # Líquido subenfriado
             
-            # Expansión isoentálpica: p1_enthalpy = p4_enthalpy, no recalculamos p1_temp aquí
-            p1_enthalpy = p4_enthalpy
+            p4_enthalpy = CP.PropsSI('H', 'T', cond_temp - subcooling, 'P', p4_pressure, refrigerant)  # Líquido subenfriado
+            p1_enthalpy = p4_enthalpy  # Expansión isoentálpica
 
             cop = (p2_enthalpy - p1_enthalpy) / (p3_enthalpy - p2_enthalpy)
 
@@ -142,7 +145,7 @@ def get_thermo_properties():
             'subcooling': subcooling,
             'cop': cop,
             'points': {
-                '1': {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': evap_temp},  # Usamos evap_temp directamente
+                '1': {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': evap_temp},
                 '2': {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': evap_temp + superheat},
                 '3': {'pressure': p3_pressure, 'enthalpy': p3_enthalpy, 'temperature': p3_temp},
                 '4': {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': cond_temp - subcooling}
