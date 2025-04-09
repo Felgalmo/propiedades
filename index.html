@@ -17,22 +17,18 @@
             left: 0; 
             width: 100%; 
             height: 100%; 
+            z-index: 1; 
         }
         #phCanvas { 
             position: absolute; 
             top: 51px; 
             left: 78px; 
             width: 324px; 
-            height: 259px; 
+            height: 233px; 
             border: 1px dashed black; 
+            z-index: 2; 
         }
         #controls { 
-            font-family: Arial, sans-serif; 
-            margin: 10px auto; 
-            width: 480px;
-            text-align: left; 
-        }
-        #failureSimulator {
             font-family: Arial, sans-serif; 
             margin: 10px auto; 
             width: 480px;
@@ -45,7 +41,7 @@
         label { 
             margin-right: 5px; 
         }
-        .control-row, .failure-row, .output-row {
+        .control-row, .output-row {
             margin-bottom: 10px;
         }
     </style>
@@ -58,11 +54,11 @@
         <div class="control-row">
             <label>Refrigerante: </label>
             <select id="refrigerant">
-                <option value="R134a" selected>R134a</option>
+                <!-- Las opciones se llenarán dinámicamente -->
             </select>
         </div>
         <div class="control-row">
-            <label>T. Evap (°C): </label><input type="number" id="evapTemp" value="-10" step="0.1">
+            <label>T. Evap (°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
             <label>Superheat (°C): </label><input type="number" id="superheat" value="0" step="0.1">
         </div>
         <div class="control-row">
@@ -73,11 +69,29 @@
             <label>Altura sobre el Nivel del Mar: </label>
             <select id="altitude" onchange="updatePressures()">
                 <option value="0">0 m</option>
+                <option value="252">252 m</option>
+                <option value="500">500 m</option>
+                <option value="750">750 m</option>
+                <option value="1000">1000 m</option>
+                <option value="1250">1250 m</option>
+                <option value="1500">1500 m</option>
+                <option value="1750">1750 m</option>
+                <option value="2000">2000 m</option>
+                <option value="2250">2250 m</option>
+                <option value="2500">2500 m</option>
+                <option value="2750">2750 m</option>
+                <option value="3000">3000 m</option>
+                <option value="3250">3250 m</option>
+                <option value="3500">3500 m</option>
+                <option value="3750">3750 m</option>
+                <option value="4000">4000 m</option>
             </select>
         </div>
         <div class="output-row">
-            <label>Presión Baja: </label><span id="presionBaja">N/A</span>
-            <label>Presión Alta: </label><span id="presionAlta">N/A</span>
+            <label>Presión de Baja (bar psi): </label><span id="presionBaja">N/A</span>
+        </div>
+        <div class="output-row">
+            <label>Presión de Alta (bar psi): </label><span id="presionAlta">N/A</span>
         </div>
         <div class="output-row">
             <label>COP: </label><span id="copValue">N/A</span>
@@ -88,30 +102,7 @@
     </div>
     <div id="mainContainer">
         <canvas id="cycleCanvas" width="480" height="360"></canvas>
-        <canvas id="phCanvas" width="324" height="259"></canvas>
-    </div>
-    <div id="failureSimulator">
-        <div class="failure-row">
-            <strong>Simulador de Fallas</strong>
-        </div>
-        <div class="failure-row">
-            <label>Fallas del Condensador: </label>
-            <select id="condenserFailure">
-                <option value="normal" selected>Normal</option>
-                <option value="low">Falla Baja</option>
-                <option value="medium">Falla Media</option>
-                <option value="severe">Falla Severa</option>
-            </select>
-        </div>
-        <div class="failure-row">
-            <label>Fallas del Evaporador: </label>
-            <select id="evaporatorFailure">
-                <option value="normal" selected>Normal</option>
-                <option value="low">Falla Baja</option>
-                <option value="medium">Falla Media</option>
-                <option value="severe">Falla Severa</option>
-            </select>
-        </div>
+        <canvas id="phCanvas" width="324" height="233"></canvas>
     </div>
     
     <script>
@@ -124,8 +115,6 @@
         const condTempInput = document.getElementById('condTemp');
         const superheatInput = document.getElementById('superheat');
         const subcoolingInput = document.getElementById('subcooling');
-        const condenserFailureSelect = document.getElementById('condenserFailure');
-        const evaporatorFailureSelect = document.getElementById('evaporatorFailure');
         const copValueSpan = document.getElementById('copValue');
         const altitudeSelect = document.getElementById('altitude');
         const presionBajaSpan = document.getElementById('presionBaja');
@@ -142,7 +131,7 @@
 
         let thermoData = {
             refrigerant: 'R134a',
-            evap_temp: 263.15,
+            evap_temp: 243.15,
             cond_temp: 313.15,
             superheat: 0,
             subcooling: 0,
@@ -153,39 +142,39 @@
                 '3': { pressure: 0, enthalpy: 0, temperature: 0 },
                 '4': { pressure: 0, enthalpy: 0, temperature: 0 }
             },
-            saturation: { liquid: [], vapor: [] },
-            debug: {}
+            saturation: { liquid: [], vapor: [] }
         };
+
+        async function loadRefrigerants() {
+            try {
+                const response = await fetch('/refrigerants');
+                const data = await response.json();
+                if (data.status === 'success') {
+                    refrigerantSelect.innerHTML = '';
+                    data.refrigerants.forEach(refrigerant => {
+                        const option = document.createElement('option');
+                        option.value = refrigerant;
+                        option.textContent = refrigerant;
+                        if (refrigerant === 'R134a') option.selected = true;
+                        refrigerantSelect.appendChild(option);
+                    });
+                } else {
+                    console.error('Error al cargar refrigerantes:', data.message);
+                }
+            } catch (error) {
+                console.error('Error al conectar con el backend para refrigerantes:', error);
+            }
+        }
 
         async function fetchThermoProperties() {
             console.log('Obteniendo datos del backend...');
             const evapTempK = parseFloat(evapTempInput.value) + 273.15;
-            let condTempK = parseFloat(condTempInput.value) + 273.15;
+            const condTempK = parseFloat(condTempInput.value) + 273.15;
             const superheat = parseFloat(superheatInput.value);
-            let subcooling = parseFloat(subcoolingInput.value);
-            const condenserFailure = condenserFailureSelect.value;
-            const evaporatorFailure = evaporatorFailureSelect.value;
-
-            switch (condenserFailure) {
-                case 'low':
-                    condTempK += 5;
-                    subcooling = Math.max(subcooling * 0.5, 0);
-                    break;
-                case 'medium':
-                    condTempK += 10;
-                    subcooling = 0;
-                    break;
-                case 'severe':
-                    condTempK += 20;
-                    subcooling = -5;
-                    break;
-                case 'normal':
-                default:
-                    break;
-            }
+            const subcooling = parseFloat(subcoolingInput.value);
 
             try {
-                const response = await fetch('http://localhost:5000/thermo', {
+                const response = await fetch('/thermo', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -193,9 +182,7 @@
                         evap_temp: evapTempK,
                         cond_temp: condTempK,
                         superheat: superheat,
-                        subcooling: subcooling,
-                        condenser_failure: condenserFailure,
-                        evaporator_failure: evaporatorFailure
+                        subcooling: subcooling
                     })
                 });
                 const data = await response.json();
@@ -203,31 +190,42 @@
                     thermoData = data;
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
+                    updatePressures();
+                    drawPHDiagram();
                 } else {
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
+                    presionBajaSpan.textContent = 'N/A';
+                    presionAltaSpan.textContent = 'N/A';
+                    alert('Error del servidor: ' + data.message);
                 }
             } catch (error) {
                 console.error('Error al conectar con el backend:', error);
                 copValueSpan.textContent = 'N/A';
+                presionBajaSpan.textContent = 'N/A';
+                presionAltaSpan.textContent = 'N/A';
+                alert('No se pudo conectar al servidor. Revisa la consola.');
             }
         }
 
         function getPresionAtmosferica(altura) {
-            const P0 = 1.01325; // Presión a nivel del mar en bar
-            const factor = 0.00012; // Factor de disminución aproximado por metro
+            const P0 = 1.01325;
+            const factor = 0.00012;
             return P0 * Math.exp(-factor * altura);
         }
 
         function updatePressures() {
             const altura = parseInt(altitudeSelect.value);
             const presionAtm = getPresionAtmosferica(altura);
-            const P2 = thermoData.points['2'].pressure / 100000;
-            const P3 = thermoData.points['3'].pressure / 100000;
+            const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
+            const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
             const presionBaja = P2 - presionAtm;
             const presionAlta = P3 - presionAtm;
-            presionBajaSpan.textContent = presionBaja.toFixed(2) + ' bar';
-            presionAltaSpan.textContent = presionAlta.toFixed(2) + ' bar';
+            const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
+            const presionAltaPsi = (presionAlta * 14.7).toFixed(2);
+
+            presionBajaSpan.textContent = `${presionBaja.toFixed(2)} bar ${presionBajaPsi} psi`;
+            presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar ${presionAltaPsi} psi`;
         }
 
         function updateThermo() {
@@ -244,33 +242,22 @@
         function getPhase(point, pointId) {
             const pressure = point.pressure;
             const enthalpy = point.enthalpy;
-            const temperature = point.temperature;
 
             const saturationLiquid = thermoData.saturation.liquid.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.liquid[0];
             const saturationVapor = thermoData.saturation.vapor.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.vapor[0];
 
-            if (!saturationLiquid || !saturationVapor) {
-                return "Desconocido";
-            }
+            if (!saturationLiquid || !saturationVapor) return "Desconocido";
 
             const hLiquid = saturationLiquid.enthalpy;
             const hVapor = saturationVapor.enthalpy;
             const margin = 2000;
 
-            if (pointId === '2') {
-                if (thermoData.superheat === 0) return "Vapor Saturado";
-                else if (thermoData.superheat > 0) return "Vapor Sobrecalentado";
-            } else if (pointId === '4') {
-                if (thermoData.condenser_failure === 'normal') {
-                    if (thermoData.subcooling > 0) return "Líquido Subenfriado";
-                    else if (thermoData.subcooling === 0) return "Líquido Saturado";
-                } else if (thermoData.condenser_failure === 'low') return "Líquido Saturado";
-                else if (thermoData.condenser_failure === 'medium' || thermoData.condenser_failure === 'severe') return "Vapor Saturado + Líquido Saturado";
-            }
+            if (pointId === '2' && thermoData.superheat > 0) return "Vapor Sobrecalentado";
+            if (pointId === '4' && thermoData.subcooling > 0) return "Líquido Subenfriado";
 
             if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
             else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
-            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Vapor Saturado + Líquido Saturado";
+            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mezcla";
             else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
             else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
             return "Desconocido";
@@ -370,17 +357,10 @@
 
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
-            let condenserColor = 'gray';
-            switch (thermoData.condenser_failure) {
-                case 'low': condenserColor = 'yellow'; break;
-                case 'medium': condenserColor = 'orange'; break;
-                case 'severe': condenserColor = 'red'; break;
-                default: condenserColor = 'gray'; break;
-            }
-            if (condenserImg.complete) {
+            if (condenserImg.complete && condenserImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
             } else {
-                cycleCtx.fillStyle = condenserColor;
+                cycleCtx.fillStyle = 'gray';
                 cycleCtx.fillRect(condenserX, condenserY, condenserWidth, condenserHeight);
             }
             const fanCenterX1 = condenserX + condenserWidth / 4, fanCenterY1 = condenserY + condenserHeight / 2;
@@ -394,17 +374,10 @@
 
             const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
             const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-            let evaporatorColor = 'gray';
-            switch (thermoData.evaporator_failure) {
-                case 'low': evaporatorColor = 'yellow'; break;
-                case 'medium': evaporatorColor = 'orange'; break;
-                case 'severe': evaporatorColor = 'red'; break;
-                default: evaporatorColor = 'gray'; break;
-            }
-            if (evaporatorImg.complete) {
+            if (evaporatorImg.complete && evaporatorImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
             } else {
-                cycleCtx.fillStyle = evaporatorColor;
+                cycleCtx.fillStyle = 'gray';
                 cycleCtx.fillRect(evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
             }
             const fanCenterX3 = evaporatorX + evaporatorWidth / 4, fanCenterY3 = evaporatorY + evaporatorHeight / 2;
@@ -418,7 +391,7 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImg.complete) {
+            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -427,7 +400,7 @@
 
             const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
             const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            if (expansionImg.complete) {
+            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
                 cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
             } else {
                 cycleCtx.fillStyle = 'gray';
@@ -438,76 +411,78 @@
                 particle.move();
                 particle.draw();
             });
-
-            // Aumentar tamaño de fuente a 12px (8px * 1.5) y ajustar espaciado
-            cycleCtx.font = '12px Arial';
-            cycleCtx.fillStyle = 'black';
-            const lineHeight = 12; // Ajustado proporcionalmente
-
-            const p1X = x1 + pipeThickness + 6;
-            const p1Y = y2 - pipeThickness - 12 - 24; // Ajustado para mayor tamaño
-            cycleCtx.fillText(`P1 = ${(thermoData.points['1'].pressure / 100000).toFixed(2)} bar`, p1X, p1Y);
-            cycleCtx.fillText(`T1 = ${(thermoData.points['1'].temperature - 273.15).toFixed(1)}°C`, p1X, p1Y + lineHeight);
-            cycleCtx.fillText(`h1 = ${(thermoData.points['1'].enthalpy / 1000).toFixed(1)} kJ/kg`, p1X, p1Y + 2 * lineHeight);
-            cycleCtx.fillText(`${getPhase(thermoData.points['1'], '1')}`, p1X, p1Y + 3 * lineHeight);
-
-            const p2X = x2 - pipeThickness - 90;
-            const p2Y = y2 - pipeThickness - 12 - 24; // Ajustado para mayor tamaño
-            cycleCtx.fillText(`P2 = ${(thermoData.points['2'].pressure / 100000).toFixed(2)} bar`, p2X, p2Y);
-            cycleCtx.fillText(`T2 = ${(thermoData.points['2'].temperature - 273.15).toFixed(1)}°C`, p2X, p2Y + lineHeight);
-            cycleCtx.fillText(`h2 = ${(thermoData.points['2'].enthalpy / 1000).toFixed(1)} kJ/kg`, p2X, p2Y + 2 * lineHeight);
-            cycleCtx.fillText(`${getPhase(thermoData.points['2'], '2')}`, p2X, p2Y + 3 * lineHeight);
-
-            const p3X = x2 - pipeThickness - 90;
-            const p3Y = y1 + pipeThickness + 6;
-            cycleCtx.fillText(`P3 = ${(thermoData.points['3'].pressure / 100000).toFixed(2)} bar`, p3X, p3Y);
-            cycleCtx.fillText(`T3 = ${(thermoData.points['3'].temperature - 273.15).toFixed(1)}°C`, p3X, p3Y + lineHeight);
-            cycleCtx.fillText(`h3 = ${(thermoData.points['3'].enthalpy / 1000).toFixed(1)} kJ/kg`, p3X, p3Y + 2 * lineHeight);
-            cycleCtx.fillText(`${getPhase(thermoData.points['3'], '3')}`, p3X, p3Y + 3 * lineHeight);
-
-            const p4X = x1 + pipeThickness + 6;
-            const p4Y = y1 + pipeThickness + 6;
-            cycleCtx.fillText(`P4 = ${(thermoData.points['4'].pressure / 100000).toFixed(2)} bar`, p4X, p4Y);
-            cycleCtx.fillText(`T4 = ${(thermoData.points['4'].temperature - 273.15).toFixed(1)}°C`, p4X, p4Y + lineHeight);
-            cycleCtx.fillText(`h4 = ${(thermoData.points['4'].enthalpy / 1000).toFixed(1)} kJ/kg`, p4X, p4Y + 2 * lineHeight);
-            cycleCtx.fillText(`${getPhase(thermoData.points['4'], '4')}`, p4X, p4Y + 3 * lineHeight);
         }
 
-        function drawPHDiagram() {
-            const pixelRatio = window.devicePixelRatio || 1;
-            phCanvas.width = 324 * pixelRatio;
-            phCanvas.height = 259 * pixelRatio;
-            phCtx.scale(pixelRatio, pixelRatio);
+        let mouseX = -100, mouseY = -100;
+        let hoveredPoint = null;
 
-            phCtx.clearRect(0, 0, phCanvas.width / pixelRatio, phCanvas.height / pixelRatio);
+        phCanvas.addEventListener('mousemove', (event) => {
+            const rect = phCanvas.getBoundingClientRect();
+            mouseX = event.clientX - rect.left;
+            mouseY = event.clientY - rect.top;
+            drawPHDiagram(); // Redibujar para actualizar el tooltip
+        });
 
-            const marginX = 32.4;
-            const marginY = 25.92;
-            const plotWidth = 324 - 2 * marginX;
-            const plotHeight = 259 - 2 * marginY;
+        phCanvas.addEventListener('mouseout', () => {
+            mouseX = -100;
+            mouseY = -100;
+            hoveredPoint = null;
+            drawPHDiagram(); // Redibujar sin tooltip
+        });
 
-            const tempMinC = -30;
-            const tempMaxC = (thermoData.cond_temp - 273.15) + 10;
-            const tempMinK = tempMinC + 273.15;
-            const tempMaxK = tempMaxC + 273.15;
-
-            const filteredLiquid = (thermoData.saturation.liquid || []).filter(point => {
-                const tempK = point.temperature + 273.15;
-                return tempK >= tempMinK && tempK <= tempMaxK;
-            });
-            const filteredVapor = (thermoData.saturation.vapor || []).filter(point => {
-                const tempK = point.temperature + 273.15;
-                return tempK >= tempMinK && tempK <= tempMaxK;
-            });
+        function getPointsPH() {
             const cyclePoints = [
                 thermoData.points['1'],
                 thermoData.points['2'],
                 thermoData.points['3'],
                 thermoData.points['4']
             ];
-
             const cyclePressures = cyclePoints.map(p => p.pressure);
             const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
+
+            const minP = Math.min(...cyclePressures) * 0.8;
+            const maxP = Math.max(...cyclePressures) * 1.2;
+            const minH = Math.min(...cycleEnthalpies) * 0.9;
+            const maxH = Math.max(...cycleEnthalpies) * 1.1;
+
+            const marginX = 32.4;
+            const marginY = 25.92;
+            const plotWidth = 324 - 2 * marginX;
+            const plotHeight = 233 - 2 * marginY;
+
+            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
+            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
+
+            return [
+                { x: scaleX(cyclePoints[0].enthalpy), y: scaleY(cyclePoints[0].pressure), label: '1', temp: cyclePoints[0].temperature },
+                { x: scaleX(cyclePoints[1].enthalpy), y: scaleY(cyclePoints[1].pressure), label: '2', temp: cyclePoints[1].temperature },
+                { x: scaleX(cyclePoints[2].enthalpy), y: scaleY(cyclePoints[2].pressure), label: '3', temp: cyclePoints[2].temperature },
+                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].temperature }
+            ];
+        }
+
+        function drawPHDiagram() {
+            const pixelRatio = window.devicePixelRatio || 1;
+            phCanvas.width = 324 * pixelRatio;
+            phCanvas.height = 233 * pixelRatio;
+            phCtx.scale(pixelRatio, pixelRatio);
+
+            phCtx.clearRect(0, 0, 324, 233);
+
+            const marginX = 32.4;
+            const marginY = 25.92;
+            const plotWidth = 324 - 2 * marginX;
+            const plotHeight = 233 - 2 * marginY;
+
+            const cyclePoints = [
+                thermoData.points['1'],
+                thermoData.points['2'],
+                thermoData.points['3'],
+                thermoData.points['4']
+            ];
+            const cyclePressures = cyclePoints.map(p => p.pressure);
+            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
+
             const minP = Math.min(...cyclePressures) * 0.8;
             const maxP = Math.max(...cyclePressures) * 1.2;
             const minH = Math.min(...cycleEnthalpies) * 0.9;
@@ -524,13 +499,10 @@
             phCtx.lineWidth = 1.08;
             phCtx.stroke();
 
-            phCtx.font = '7.2px Arial';
+            phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth / 2 - 21.6, marginY + plotHeight + 17.28);
-            phCtx.save();
-            phCtx.rotate(-Math.PI / 2);
-            phCtx.fillText('Presión (bar)', -marginY - plotHeight / 2 - 12.96, marginX - 12.96);
-            phCtx.restore();
+            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
+            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
 
             const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
@@ -543,7 +515,7 @@
                 phCtx.moveTo(marginX - 5.4, y);
                 phCtx.lineTo(marginX + 5.4, y);
                 phCtx.stroke();
-                phCtx.fillText((p / 100000).toFixed(1), marginX - 21.6, y + 2.16);
+                phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
             }
 
             const numEnthalpyTicks = 6;
@@ -558,9 +530,9 @@
                 phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
             }
 
-            if (filteredLiquid.length > 0) {
+            if (thermoData.saturation.liquid.length > 0) {
                 phCtx.beginPath();
-                filteredLiquid.forEach((point, index) => {
+                thermoData.saturation.liquid.forEach((point, index) => {
                     const x = scaleX(point.enthalpy);
                     const y = scaleY(point.pressure);
                     if (index === 0) phCtx.moveTo(x, y);
@@ -571,9 +543,9 @@
                 phCtx.stroke();
             }
 
-            if (filteredVapor.length > 0) {
+            if (thermoData.saturation.vapor.length > 0) {
                 phCtx.beginPath();
-                filteredVapor.forEach((point, index) => {
+                thermoData.saturation.vapor.forEach((point, index) => {
                     const x = scaleX(point.enthalpy);
                     const y = scaleY(point.pressure);
                     if (index === 0) phCtx.moveTo(x, y);
@@ -584,71 +556,72 @@
                 phCtx.stroke();
             }
 
-            const tempStep = 5;
-            const minTemp = Math.floor(tempMinC / tempStep) * tempStep;
-            const maxTemp = Math.ceil(tempMaxC / tempStep) * tempStep;
-
-            for (let temp = minTemp; temp <= maxTemp; temp += tempStep) {
-                const liquidPoint = filteredLiquid.reduce((prev, curr) =>
-                    Math.abs((curr.temperature + 273.15) - (temp + 273.15)) < Math.abs((prev.temperature + 273.15) - (temp + 273.15)) ? curr : prev,
-                    filteredLiquid[0]
-                );
-                const vaporPoint = filteredVapor.reduce((prev, curr) =>
-                    Math.abs((curr.temperature + 273.15) - (temp + 273.15)) < Math.abs((prev.temperature + 273.15) - (temp + 273.15)) ? curr : prev,
-                    filteredVapor[0]
-                );
-
-                if (liquidPoint && vaporPoint) {
-                    const xLiquid = scaleX(liquidPoint.enthalpy);
-                    const yLiquid = scaleY(liquidPoint.pressure);
-                    const xVapor = scaleX(vaporPoint.enthalpy);
-                    const yVapor = scaleY(vaporPoint.pressure);
-
-                    phCtx.beginPath();
-                    phCtx.moveTo(xLiquid, yLiquid);
-                    phCtx.lineTo(xVapor, yVapor);
-                    phCtx.strokeStyle = 'gray';
-                    phCtx.lineWidth = 0.54;
-                    phCtx.setLineDash([2.7, 2.7]);
-                    phCtx.stroke();
-                    phCtx.setLineDash([]);
-
-                    phCtx.font = '5.4px Arial';
-                    phCtx.fillStyle = '#1A1A1A';
-                    const tempLabel = temp.toFixed(1);
-                    // Mover etiqueta al lado derecho (xVapor + desplazamiento)
-                    phCtx.fillText(`${tempLabel}°C`, xVapor + 5, yVapor - 2.16);
-                }
-            }
-
-            const points = [
-                { x: scaleX(cyclePoints[0].enthalpy), y: scaleY(cyclePoints[0].pressure), label: '1', temp: cyclePoints[0].temperature },
-                { x: scaleX(cyclePoints[1].enthalpy), y: scaleY(cyclePoints[1].pressure), label: '2', temp: cyclePoints[1].temperature },
-                { x: scaleX(cyclePoints[2].enthalpy), y: scaleY(cyclePoints[2].pressure), label: '3', temp: cyclePoints[2].temperature },
-                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].temperature }
-            ];
-
-            if (points.length === 4) {
+            const pointsPH = getPointsPH();
+            if (pointsPH.length === 4) {
                 phCtx.beginPath();
-                points.forEach((point, index) => {
+                pointsPH.forEach((point, index) => {
                     if (index === 0) phCtx.moveTo(point.x, point.y);
                     else phCtx.lineTo(point.x, point.y);
                 });
-                phCtx.lineTo(points[0].x, points[0].y);
-                phCtx.strokeStyle = (thermoData.condenser_failure === 'normal' && thermoData.evaporator_failure === 'normal') ? 'blue' : 'red';
+                phCtx.lineTo(pointsPH[0].x, pointsPH[0].y);
+                phCtx.strokeStyle = 'blue';
                 phCtx.lineWidth = 2.16;
                 phCtx.stroke();
 
-                points.forEach(point => {
+                pointsPH.forEach(point => {
                     phCtx.beginPath();
                     phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
                     phCtx.fillStyle = 'red';
                     phCtx.fill();
-                    phCtx.font = '6.3px Arial';
+                    phCtx.font = '12.6px Arial';
                     phCtx.fillStyle = 'black';
                     const tempC = (point.temp - 273.15).toFixed(1);
-                    phCtx.fillText(`${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
+                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
+
+                    const dx = mouseX - point.x;
+                    const dy = mouseY - point.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 10) {  // Reducimos el radio para mayor precisión
+                        hoveredPoint = point.label;
+                    }
                 });
+
+                if (hoveredPoint) {
+                    const point = pointsPH.find(p => p.label === hoveredPoint);
+                    const pointData = thermoData.points[hoveredPoint];
+                    phCtx.font = '10px Arial';
+                    phCtx.fillStyle = 'black';
+                    const lineHeight = 12;
+                    const textX = point.x + 10;
+                    const textY = point.y - 20;
+                    const textLines = [
+                        `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
+                        `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
+                        `h${hoveredPoint} = ${(pointData.enthalpy / 1000).toFixed(1)} kJ/kg`,
+                        `${getPhase(pointData, hoveredPoint)}`
+                    ];
+
+                    const padding = 5;
+                    const textWidth = Math.max(...textLines.map(line => phCtx.measureText(line).width));
+                    const boxWidth = textWidth + 2 * padding;
+                    const boxHeight = lineHeight * textLines.length + 2 * padding;
+
+                    // Ajustar posición si se sale del canvas
+                    let adjustedTextX = textX;
+                    let adjustedTextY = textY;
+                    if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
+                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight + 10;
+
+                    phCtx.fillStyle = 'white';
+                    phCtx.fillRect(adjustedTextX - padding, adjustedTextY - padding - lineHeight, boxWidth, boxHeight);
+
+                    phCtx.fillStyle = 'black';
+                    textLines.forEach((line, index) => {
+                        phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
+                    });
+                } else {
+                    hoveredPoint = null; // Resetear si no está sobre un punto
+                }
             }
         }
 
@@ -656,18 +629,20 @@
             cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
             drawCycle();
             fanAngle += 0.05;
-            drawPHDiagram();
             requestAnimationFrame(animate);
         }
 
         console.log('Iniciando aplicación...');
-        fetchThermoProperties().then(() => {
-            console.log('Datos iniciales cargados, comenzando animación...');
-            updatePressures();
-            animate();
-        }).catch(error => {
-            console.error('Error al iniciar:', error);
-            animate();
+        loadRefrigerants().then(() => {
+            fetchThermoProperties().then(() => {
+                console.log('Datos iniciales cargados, comenzando animación...');
+                drawPHDiagram();
+                updatePressures();
+                animate();
+            }).catch(error => {
+                console.error('Error al iniciar:', error);
+                animate();
+            });
         });
     </script>
 </body>
