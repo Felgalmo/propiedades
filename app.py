@@ -54,8 +54,8 @@ def get_properties_from_csv(refrigerant, temp_c):
         'pressure_dew': props['Presión Rocío (bar)'] * 100000,
         'h_liquid': props['Entalpía Líquido (kJ/kg)'] * 1000,
         'h_vapor': props['Entalpía Vapor (kJ/kg)'] * 1000,
-        's_liquid': props['Entalpía Líquido (kJ/kg·K)'] * 1000,
-        's_vapor': props['Entalpía Vapor (kJ/kg·K)'] * 1000,
+        's_liquid': props['Entropía Líquido (kJ/kg·K)'] * 1000,
+        's_vapor': props['Entropía Vapor (kJ/kg·K)'] * 1000,
         'cp_vapor': props['Cp Vapor (kJ/kg·K)'] * 1000
     }
 
@@ -139,6 +139,7 @@ def get_thermo_properties():
             cop = q_evap / w_comp if w_comp != 0 else 0
 
             # Datos de saturación para la campana
+            df_ref = df_refrigerants[df_refrigerants['Refrigerante'] == refrigerant]
             num_points = 50
             temp_range = (cond_temp_c - evap_temp_c) * 1.5
             temp_min = evap_temp_c - temp_range * 0.25
