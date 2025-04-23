@@ -334,7 +334,7 @@ def get_thermo_properties():
         return jsonify(response)
     except Exception as e:
         print(f"Error en cálculo: {str(e)}")
-        return jsonify('{status': 'error', 'message': str(e)}), 500
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/')
 def serve_index():
