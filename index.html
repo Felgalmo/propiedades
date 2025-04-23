@@ -260,7 +260,7 @@
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
                     massFlowSpan.textContent = thermoData.mass_flow.toFixed(4);
-                    densityPoint4Span.textContent = thermoData.points['4'].density.toFixed(2);
+                    densityPoint4Span.textContent = thermoData.points['4'].density ? thermoData.points['4'].density.toFixed(2) : 'N/A';
                     updatePressures();
                     updateCapillaryTable();
                     drawPHDiagram();
