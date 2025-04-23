@@ -4,57 +4,51 @@ from flask_cors import CORS
 import CoolProp.CoolProp as CP
 import pandas as pd
 import math
+import logging
 
 app = Flask(__name__, static_folder='.', static_url_path='')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-# Cargar las bases de datos CSV al iniciar la aplicación
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 try:
     df_refrigerants = pd.read_csv('refrigerants.csv', encoding='utf-8-sig')
-    print("Columnas en refrigerants.csv:", df_refrigerants.columns.tolist())
+    logger.info("Columnas en refrigerants.csv: %s", df_refrigerants.columns.tolist())
 except FileNotFoundError:
     df_refrigerants = pd.DataFrame()
-    print("Error: refrigerants.csv no encontrado")
+    logger.error("refrigerants.csv no encontrado")
 except Exception as e:
     df_refrigerants = pd.DataFrame()
-    print(f"Error al leer refrigerants.csv: {str(e)}")
+    logger.error("Error al leer refrigerants.csv: %s", str(e))
 
 try:
     df_capillary = pd.read_csv('capillary_constants.csv', encoding='utf-8-sig')
-    print("Columnas en capillary_constants.csv:", df_capillary.columns.tolist())
+    logger.info("Columnas en capillary_constants.csv: %s", df_capillary.columns.tolist())
 except FileNotFoundError:
-    df_capillary = pd.DataFrame(columns=['Refrigerante', 'C'])
-    print("Error: capillary_constants.csv no encontrado")
+    df_capillary = pd.DataFrame(columns=['Refrigerant', 'C'])
+    logger.error("capillary_constants.csv no encontrado")
 except Exception as e:
-    df_capillary = pd.DataFrame(columns=['Refrigerante', 'C'])
-    print(f"Error al leer capillary_constants.csv: {str(e)}")
+    df_capillary = pd.DataFrame(columns=['Refrigerant', 'C'])
+    logger.error("Error al leer capillary_constants.csv: %s", str(e))
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 
-# Lista de diámetros comerciales en metros (convertidos desde pulgadas)
 COMMERCIAL_DIAMETERS = [
-    0.0007112,  # 0.028 inches
-    0.0007874,  # 0.031 inches
-    0.0008382,  # 0.033 inches
-    0.0009144,  # 0.036 inches
-    0.0009906,  # 0.039 inches
-    0.0010668,  # 0.042 inches
-    0.0011176,  # 0.044 inches
-    0.0011938,  # 0.047 inches
-    0.0012446,  # 0.049 inches
-    0.0013208,  # 0.052 inches
-    0.001397,   # 0.055 inches
-    0.0014986,  # 0.059 inches
-    0.0016256,  # 0.064 inches
-    0.001778    # 0.070 inches
+    0.0007112, 0.0007874, 0.0008382, 0.0009144, 0.0009906, 0.0010668,
+    0.0011176, 0.0011938, 0.0012446, 0.0013208, 0.001397, 0.0014986,
+    0.0016256, 0.001778
 ]
 
-# Función para interpolar linealmente entre dos puntos
 def interpolate(x, x0, x1, y0, y1):
-    return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    try:
+        return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+    except ZeroDivisionError:
+        logger.warning("Interpolación fallida: x0 == x1, retornando y0")
+        return y0
 
-# Obtener propiedades desde el CSV con interpolación
 def get_properties_from_csv(refrigerant, temp_c):
+    logger.debug("Obteniendo propiedades de %s a %s°C", refrigerant, temp_c)
     if df_refrigerants.empty:
         raise ValueError("Archivo refrigerants.csv no cargado o vacío")
     
@@ -74,13 +68,11 @@ def get_properties_from_csv(refrigerant, temp_c):
     temps = df_ref[temp_col].tolist()
     if not temps:
         raise ValueError(f"No hay datos de temperatura para {refrigerant}")
-    if temp_c < min(temps) or temp_c > max(temps):
-        raise ValueError(f"Temperatura {temp_c}°C fuera de rango para {refrigerant}")
     
     temp_lower = max([t for t in temps if t <= temp_c], default=min(temps))
     temp_upper = min([t for t in temps if t >= temp_c], default=max(temps))
     
-    if temp_lower == temp_upper:
+    if temp_lower == temp_upper or temp_c < min(temps) or temp_c > max(temps):
         row = df_ref[df_ref[temp_col] == temp_lower].iloc[0]
         return {
             'pressure_bubble': row.get('Presión Burbuja (bar)', 0) * 100000,
@@ -91,7 +83,7 @@ def get_properties_from_csv(refrigerant, temp_c):
             's_vapor': row.get('Entropía Vapor (kJ/kg·K)', 0) * 1000,
             'cp_vapor': row.get('Cp Vapor (kJ/kg·K)', 0) * 1000,
             'density_liquid': row.get('Densidad Líquido (kg/m³)', 1200),
-            'density_vapor': row.get('Densidad Vapor (kg/m³)', 50)  # Default vapor density
+            'density_vapor': row.get('Densidad Vapor (kg/m³)', 50)
         }
     
     row_lower = df_ref[df_ref[temp_col] == temp_lower].iloc[0]
@@ -117,22 +109,24 @@ def get_properties_from_csv(refrigerant, temp_c):
         'density_vapor': props['Densidad Vapor (kg/m³)']
     }
 
-# Obtener la constante C desde el CSV
 def get_capillary_constant(refrigerant):
     default_c = 0.0001
     if df_capillary.empty:
+        logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
     possible_columns = [col for col in df_capillary.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
     if not possible_columns:
+        logger.warning("Columna 'Refrigerant' no encontrada en capillary_constants.csv, usando valor por defecto: %s", default_c)
         return default_c
     refrigerant_col = possible_columns[0]
     row = df_capillary[df_capillary[refrigerant_col] == refrigerant]
     if row.empty:
+        logger.warning("No se encontró constante para %s, usando valor por defecto: %s", refrigerant, default_c)
         return default_c
-    return row.get('C', default_c)
+    return row['C'].iloc[0]
 
-# Calcular longitud del tubo capilar
 def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling):
+    logger.debug("Calculando longitudes de capilar para %s", refrigerant)
     is_custom = refrigerant in custom_refrigerants
     cooling_power_watts = cooling_power['value']
     if cooling_power['unit'] == 'Btu/h':
@@ -140,9 +134,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     elif cooling_power['unit'] == 'kcal/h':
         cooling_power_watts *= 1.163
 
-    if h2 - h1 == 0:
-        raise ValueError("Diferencia de entalpía h2 - h1 es cero")
+    if abs(h2 - h1) < 1e-6:
+        raise ValueError("Diferencia de entalpía h2 - h1 es demasiado pequeña")
     m_dot = cooling_power_watts / (h2 - h1)
+    logger.debug("Caudal másico: %s kg/s", m_dot)
 
     if is_custom:
         props = get_properties_from_csv(refrigerant, p4['temperature'] - 273.15)
@@ -154,7 +149,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             else:
                 rho = CP.PropsSI('D', 'T', p4['temperature'], 'P', p4['pressure'], refrigerant)
         except ValueError as e:
-            print(f"CoolProp density calculation failed: {str(e)}. Using saturated liquid fallback.")
+            logger.warning("CoolProp density calculation failed: %s. Using fallback.", str(e))
             rho = CP.PropsSI('D', 'T', p4['temperature'] - 0.1, 'Q', 0, refrigerant)
 
     delta_p = p4['pressure'] - p1['pressure']
@@ -162,12 +157,13 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
         raise ValueError("Delta P debe ser positivo")
 
     C = get_capillary_constant(refrigerant)
+    logger.debug("Constante capilar C: %s", C)
 
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
             denominator = C * (D ** 2.5) * math.sqrt(rho * delta_p)
-            if denominator == 0:
+            if abs(denominator) < 1e-6:
                 length = float('inf')
             else:
                 length = (m_dot / denominator) ** 2
@@ -176,6 +172,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': round(length, 2)
             })
         except Exception as e:
+            logger.error("Error calculando longitud para diámetro %s: %s", D, str(e))
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
                 'length_m': f"Error: {str(e)}"
@@ -185,24 +182,40 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
 
 @app.route('/refrigerants', methods=['GET'])
 def get_refrigerants():
+    logger.info("Request received for /refrigerants")
     try:
         refrigerants = CP.FluidsList() + custom_refrigerants
-        print("Refrigerantes soportados:", refrigerants)
+        logger.debug("Refrigerantes soportados: %s", refrigerants)
         return jsonify({'status': 'success', 'refrigerants': refrigerants})
     except Exception as e:
+        logger.error("Error en /refrigerants: %s", str(e))
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/thermo', methods=['POST'])
 def get_thermo_properties():
     data = request.get_json()
-    print(f"Datos recibidos: {data}")
+    logger.info("Request received for /thermo with data: %s", data)
     
-    refrigerant = data.get('refrigerant', 'R134a')
-    evap_temp = float(data.get('evap_temp', 243.15))
-    cond_temp = float(data.get('cond_temp', 313.15))
-    superheat = float(data.get('superheat', 0))
-    subcooling = float(data.get('subcooling', 0))
-    cooling_power = data.get('cooling_power', {'value': 1000, 'unit': 'W'})
+    try:
+        refrigerant = data.get('refrigerant', 'R134a')
+        evap_temp = float(data.get('evap_temp', 243.15))
+        cond_temp = float(data.get('cond_temp', 313.15))
+        superheat = float(data.get('superheat', 0))
+        subcooling = float(data.get('subcooling', 0))
+        cooling_power = data.get('cooling_power', {'value': 1000, 'unit': 'W'})
+    except (TypeError, ValueError) as e:
+        logger.error("Datos de entrada inválidos: %s", str(e))
+        return jsonify({'status': 'error', 'message': 'Datos de entrada inválidos'}), 400
+
+    if cond_temp <= evap_temp:
+        logger.error("Temperatura de condensación menor o igual a la de evaporación")
+        return jsonify({'status': 'error', 'message': 'La temperatura de condensación debe ser mayor que la de evaporación'}), 400
+    if superheat < 0 or subcooling < 0:
+        logger.error("Sobrecalentamiento o subenfriamiento negativo")
+        return jsonify({'status': 'error', 'message': 'El sobrecalentamiento y subenfriamiento no pueden ser negativos'}), 400
+    if cooling_power['value'] <= 0:
+        logger.error("Potencia de enfriamiento inválida")
+        return jsonify({'status': 'error', 'message': 'La potencia de enfriamiento debe ser mayor que cero'}), 400
 
     is_custom = refrigerant in custom_refrigerants
     evap_temp_c = evap_temp - 273.15
@@ -210,6 +223,7 @@ def get_thermo_properties():
 
     try:
         if is_custom:
+            logger.debug("Procesando refrigerante personalizado: %s", refrigerant)
             evap_props = get_properties_from_csv(refrigerant, evap_temp_c)
             cond_props = get_properties_from_csv(refrigerant, cond_temp_c)
 
@@ -228,7 +242,7 @@ def get_thermo_properties():
             p1_pressure = evap_props['pressure_dew']
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
-            p1_density = evap_props['density_liquid']  # Mixture or saturated liquid
+            p1_density = evap_props['density_liquid']
 
             p2_pressure = p1_pressure
             if superheat == 0:
@@ -252,10 +266,10 @@ def get_thermo_properties():
 
             h_g_cond = cond_props['h_vapor']
             delta_h_superheat = p3_enthalpy - h_g_cond
-            cp_vapor = cond_props['cp_vapor']
+            cp_vapor = cond_props['cp_vapor'] or 1000
             delta_t_superheat = delta_h_superheat / cp_vapor
             p3_temp = cond_temp + delta_t_superheat
-            p3_density = cond_props['density_vapor']  # Approximation for superheated vapor
+            p3_density = cond_props['density_vapor']
 
             q_evap = p2_enthalpy - p1_enthalpy
             w_comp = p3_enthalpy - p2_enthalpy
@@ -288,10 +302,11 @@ def get_thermo_properties():
                 })
 
         else:
+            logger.debug("Procesando refrigerante CoolProp: %s", refrigerant)
             t_min = CP.PropsSI('Tmin', refrigerant)
             t_max = CP.PropsSI('Tcrit', refrigerant)
             if evap_temp < t_min or cond_temp > t_max:
-                raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min} K, {t_max} K]")
+                raise ValueError(f"Temperatura fuera de rango para {refrigerant}: [{t_min-273.15}°C, {t_max-273.15}°C]")
 
             p4_pressure = CP.PropsSI('P', 'T', cond_temp, 'Q', 1, refrigerant)
             if subcooling == 0:
@@ -320,9 +335,19 @@ def get_thermo_properties():
             s2 = CP.PropsSI('S', 'H', p2_enthalpy, 'P', p2_pressure, refrigerant)
 
             p3_pressure = p4_pressure
-            p3_enthalpy = CP.PropsSI('H', 'P', p3_pressure, 'S', s2, refrigerant)
-            p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'H', p3_enthalpy, refrigerant)
-            p3_density = CP.PropsSI('D', 'P', p3_pressure, 'H', p3_enthalpy, refrigerant)
+            try:
+                p3_enthalpy = CP.PropsSI('H', 'P', p3_pressure, 'S', s2, refrigerant)
+                p3_temp = CP.PropsSI('T', 'P', p3_pressure, 'H', p3_enthalpy, refrigerant)
+                p3_density = CP.PropsSI('D', 'P', p3_pressure, 'H', p3_enthalpy, refrigerant)
+            except ValueError as e:
+                logger.warning("Cálculo isentrópico fallido: %s. Usando aproximación.", str(e))
+                t_evap_k = evap_temp
+                t_cond_k = cond_temp
+                cop_ideal = t_evap_k / (t_cond_k - t_evap_k)
+                cop_real = cop_ideal * 0.75
+                p3_enthalpy = p2_enthalpy + (p2_enthalpy - p4_enthalpy) / cop_real
+                p3_temp = cond_temp + 10
+                p3_density = CP.PropsSI('D', 'T', p3_temp, 'P', p3_pressure, refrigerant)
 
             q_evap = p2_enthalpy - p1_enthalpy
             w_comp = p3_enthalpy - p2_enthalpy
@@ -347,7 +372,9 @@ def get_thermo_properties():
 
         p1 = {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': p1_temp, 'density': p1_density}
         p2 = {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': p2_temp, 'density': p2_density}
+        p3 = {'pressure': p3_pressure, 'enthalpy': p3_enthalpy, 'temperature': p3_temp, 'density': p3_density}
         p4 = {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': p4_temp, 'density': p4_density}
+
         capillary_lengths, mass_flow = calculate_capillary_lengths(
             refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy, subcooling
         )
@@ -362,23 +389,24 @@ def get_thermo_properties():
             'cop': cop,
             'mass_flow': mass_flow,
             'points': {
-                '1': {'pressure': p1_pressure, 'enthalpy': p1_enthalpy, 'temperature': p1_temp, 'density': p1_density},
-                '2': {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': p2_temp, 'density': p2_density},
-                '3': {'pressure': p3_pressure, 'enthalpy': p3_enthalpy, 'temperature': p3_temp, 'density': p3_density},
-                '4': {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': p4_temp, 'density': p4_density}
+                '1': p1,
+                '2': p2,
+                '3': p3,
+                '4': p4
             },
             'saturation': saturation_data,
             'capillary_lengths': capillary_lengths
         }
-        print("Respuesta enviada al frontend:", response)
+        logger.debug("Respuesta enviada al frontend: %s", response)
         return jsonify(response)
+
     except Exception as e:
-        print(f"Error en cálculo: {str(e)}")
+        logger.error("Error en cálculo termo: %s", str(e), exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/')
 def serve_index():
-    print("Sirviendo index.html")
+    logger.info("Sirviendo index.html")
     return send_from_directory('.', 'index.html')
 
 if __name__ == '__main__':
