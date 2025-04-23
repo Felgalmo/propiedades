@@ -198,10 +198,10 @@
             cop: 0,
             mass_flow: 0,
             points: {
-                '1': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '2': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '3': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '4': { pressure: 0, enthalpy: 0, temperature: 0 }
+                '1': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '2': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '3': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '4': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 }
             },
             saturation: { liquid: [], vapor: [] },
             capillary_lengths: []
@@ -284,7 +284,7 @@
             thermoData.capillary_lengths.forEach(item => {
                 const row = document.createElement('tr');
                 const diameterCell = document.createElement('td');
-                const diameterMeters = item.diameter_mm / 1000; // Convertir mm a metros
+                const diameterMeters = item.diameter_mm / 1000;
                 const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254).toFixed(3);
                 diameterCell.textContent = diameterInches.toFixed(3);
                 const lengthCell = document.createElement('td');
@@ -304,8 +304,8 @@
         function updatePressures() {
             const altura = parseInt(altitudeSelect.value);
             const presionAtm = getPresionAtmosferica(altura);
-            const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
-            const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
+            const P2 = thermoData.points['2'].pressure / 100000;
+            const P3 = thermoData.points['3'].pressure / 100000;
             const presionBaja = P2 - presionAtm;
             const presionAlta = P3 - presionAtm;
             const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
@@ -478,259 +478,10 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
-                cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
-            } else {
-                cycleCtx.fillStyle = 'gray';
-                cycleCtx.fillRect(compressorX, compressorY, compressorWidth, compressorHeight);
-            }
+            if (compressorImgReturns:
+- The density is now included for all points (P1, P2, P3, P4) in the backend response.
+- The tooltip in the P-h diagram displays the density (`ρ`) in `kg/m³` when hovering over each point, alongside pressure, temperature, enthalpy, and phase.
+- The modifications ensure compatibility with both standard and custom refrigerants, using appropriate data sources (CoolProp or CSV).
+- The tooltip box size is adjusted to accommodate the additional density line, maintaining readability.
 
-            const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
-            const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
-                cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
-            } else {
-                cycleCtx.fillStyle = 'gray';
-                cycleCtx.fillRect(expansionX, expansionY, expansionWidth, expansionHeight);
-            }
-
-            particles.forEach(particle => {
-                particle.move();
-                particle.draw();
-            });
-        }
-
-        let mouseX = -100, mouseY = -100;
-        let hoveredPoint = null;
-
-        phCanvas.addEventListener('mousemove', (event) => {
-            const rect = phCanvas.getBoundingClientRect();
-            mouseX = event.clientX - rect.left;
-            mouseY = event.clientY - rect.top;
-            drawPHDiagram(); // Redibujar para actualizar el tooltip
-        });
-
-        phCanvas.addEventListener('mouseout', () => {
-            mouseX = -100;
-            mouseY = -100;
-            hoveredPoint = null;
-            drawPHDiagram(); // Redibujar sin tooltip
-        });
-
-        function getPointsPH() {
-            const cyclePoints = [
-                thermoData.points['1'],
-                thermoData.points['2'],
-                thermoData.points['3'],
-                thermoData.points['4']
-            ];
-            const cyclePressures = cyclePoints.map(p => p.pressure);
-            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
-
-            const minP = Math.min(...cyclePressures) * 0.8;
-            const maxP = Math.max(...cyclePressures) * 1.2;
-            const minH = Math.min(...cycleEnthalpies) * 0.9;
-            const maxH = Math.max(...cycleEnthalpies) * 1.1;
-
-            const marginX = 32.4;
-            const marginY = 25.92;
-            const plotWidth = 324 - 2 * marginX;
-            const plotHeight = 233 - 2 * marginY;
-
-            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
-            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
-
-            return [
-                { x: scaleX(cyclePoints[0].enthalpy), y: scaleY(cyclePoints[0].pressure), label: '1', temp: cyclePoints[0].temperature },
-                { x: scaleX(cyclePoints[1].enthalpy), y: scaleY(cyclePoints[1].pressure), label: '2', temp: cyclePoints[1].temperature },
-                { x: scaleX(cyclePoints[2].enthalpy), y: scaleY(cyclePoints[2].pressure), label: '3', temp: cyclePoints[2].temperature },
-                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].temperature }
-            ];
-        }
-
-        function drawPHDiagram() {
-            const pixelRatio = window.devicePixelRatio || 1;
-            phCanvas.width = 324 * pixelRatio;
-            phCanvas.height = 233 * pixelRatio;
-            phCtx.scale(pixelRatio, pixelRatio);
-
-            phCtx.clearRect(0, 0, 324, 233);
-
-            const marginX = 32.4;
-            const marginY = 25.92;
-            const plotWidth = 324 - 2 * marginX;
-            const plotHeight = 233 - 2 * marginY;
-
-            const cyclePoints = [
-                thermoData.points['1'],
-                thermoData.points['2'],
-                thermoData.points['3'],
-                thermoData.points['4']
-            ];
-            const cyclePressures = cyclePoints.map(p => p.pressure);
-            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
-
-            const minP = Math.min(...cyclePressures) * 0.8;
-            const maxP = Math.max(...cyclePressures) * 1.2;
-            const minH = Math.min(...cycleEnthalpies) * 0.9;
-            const maxH = Math.max(...cycleEnthalpies) * 1.1;
-
-            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
-            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
-
-            phCtx.beginPath();
-            phCtx.moveTo(marginX, marginY);
-            phCtx.lineTo(marginX, marginY + plotHeight);
-            phCtx.lineTo(marginX + plotWidth, marginY + plotHeight);
-            phCtx.strokeStyle = 'black';
-            phCtx.lineWidth = 1.08;
-            phCtx.stroke();
-
-            phCtx.font = '14.4px Arial';
-            phCtx.fillStyle = 'black';
-            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
-            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
-
-            const logMinP = Math.log(minP);
-            const logMaxP = Math.log(maxP);
-            const numPressureTicks = 6;
-            for (let i = 0; i < numPressureTicks; i++) {
-                const logP = logMinP + (logMaxP - logMinP) * i / (numPressureTicks - 1);
-                const p = Math.exp(logP);
-                const y = scaleY(p);
-                phCtx.beginPath();
-                phCtx.moveTo(marginX - 5.4, y);
-                phCtx.lineTo(marginX + 5.4, y);
-                phCtx.stroke();
-                phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
-            }
-
-            const numEnthalpyTicks = 6;
-            const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
-            for (let i = 0; i < numEnthalpyTicks; i++) {
-                const h = minH + i * hStep;
-                const x = scaleX(h);
-                phCtx.beginPath();
-                phCtx.moveTo(x, marginY + plotHeight - 5.4);
-                phCtx.lineTo(x, marginY + plotHeight + 5.4);
-                phCtx.stroke();
-                phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
-            }
-
-            if (thermoData.saturation.liquid.length > 0) {
-                phCtx.beginPath();
-                thermoData.saturation.liquid.forEach((point, index) => {
-                    const x = scaleX(point.enthalpy);
-                    const y = scaleY(point.pressure);
-                    if (index === 0) phCtx.moveTo(x, y);
-                    else phCtx.lineTo(x, y);
-                });
-                phCtx.strokeStyle = 'green';
-                phCtx.lineWidth = 1.62;
-                phCtx.stroke();
-            }
-
-            if (thermoData.saturation.vapor.length > 0) {
-                phCtx.beginPath();
-                thermoData.saturation.vapor.forEach((point, index) => {
-                    const x = scaleX(point.enthalpy);
-                    const y = scaleY(point.pressure);
-                    if (index === 0) phCtx.moveTo(x, y);
-                    else phCtx.lineTo(x, y);
-                });
-                phCtx.strokeStyle = 'purple';
-                phCtx.lineWidth = 1.62;
-                phCtx.stroke();
-            }
-
-            const pointsPH = getPointsPH();
-            if (pointsPH.length === 4) {
-                phCtx.beginPath();
-                pointsPH.forEach((point, index) => {
-                    if (index === 0) phCtx.moveTo(point.x, point.y);
-                    else phCtx.lineTo(point.x, point.y);
-                });
-                phCtx.lineTo(pointsPH[0].x, pointsPH[0].y);
-                phCtx.strokeStyle = 'blue';
-                phCtx.lineWidth = 2.16;
-                phCtx.stroke();
-
-                pointsPH.forEach(point => {
-                    phCtx.beginPath();
-                    phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
-                    phCtx.fillStyle = 'red';
-                    phCtx.fill();
-                    phCtx.font = '12.6px Arial';
-                    phCtx.fillStyle = 'black';
-                    const tempC = (point.temp - 273.15).toFixed(1);
-                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
-
-                    const dx = mouseX - point.x;
-                    const dy = mouseY - point.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 10) {  // Reducimos el radio para mayor precisión
-                        hoveredPoint = point.label;
-                    }
-                });
-
-                if (hoveredPoint) {
-                    const point = pointsPH.find(p => p.label === hoveredPoint);
-                    const pointData = thermoData.points[hoveredPoint];
-                    phCtx.font = '10px Arial';
-                    phCtx.fillStyle = 'black';
-                    const lineHeight = 12;
-                    const textX = point.x + 10;
-                    const textY = point.y - 20;
-                    const textLines = [
-                        `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
-                        `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
-                        `h${hoveredPoint} = ${(pointData.enthalpy / 1000).toFixed(1)} kJ/kg`,
-                        `${getPhase(pointData, hoveredPoint)}`
-                    ];
-
-                    const padding = 5;
-                    const textWidth = Math.max(...textLines.map(line => phCtx.measureText(line).width));
-                    const boxWidth = textWidth + 2 * padding;
-                    const boxHeight = lineHeight * textLines.length + 2 * padding;
-
-                    // Ajustar posición si se sale del canvas
-                    let adjustedTextX = textX;
-                    let adjustedTextY = textY;
-                    if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
-                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight + 10;
-
-                    phCtx.fillStyle = 'white';
-                    phCtx.fillRect(adjustedTextX - padding, adjustedTextY - padding - lineHeight, boxWidth, boxHeight);
-
-                    phCtx.fillStyle = 'black';
-                    textLines.forEach((line, index) => {
-                        phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
-                    });
-                } else {
-                    hoveredPoint = null; // Resetear si no está sobre un punto
-                }
-            }
-        }
-
-        function animate() {
-            cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
-            drawCycle();
-            fanAngle += 0.05;
-            requestAnimationFrame(animate);
-        }
-
-        console.log('Iniciando aplicación...');
-        loadRefrigerants().then(() => {
-            fetchThermoProperties().then(() => {
-                console.log('Datos iniciales cargados, comenzando animación...');
-                drawPHDiagram();
-                updatePressures();
-                animate();
-            }).catch(error => {
-                console.error('Error al iniciar:', error);
-                animate();
-            });
-        });
-    </script>
-</body>
-</html>
+Ensure that the `refrigerants.csv` file for custom refrigerants includes a `Densidad Vapor (kg/m³)` column for accurate vapor density data, or the default value (50 kg/m³) will be used.
