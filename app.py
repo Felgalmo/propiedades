@@ -31,22 +31,22 @@ except Exception as e:
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 
-# Lista de diámetros comerciales en metros
+# Lista de diámetros comerciales en metros (convertidos desde pulgadas)
 COMMERCIAL_DIAMETERS = [
-    0.0007,  # 0.70 mm
-    0.0008,  # 0.80 mm
-    0.00085, # 0.85 mm
-    0.0009,  # 0.90 mm
-    0.001,   # 1.00 mm
-    0.00105, # 1.05 mm
-    0.0011,  # 1.10 mm
-    0.0012,  # 1.20 mm
-    0.00125, # 1.25 mm
-    0.0013,  # 1.30 mm
-    0.0014,  # 1.40 mm
-    0.0015,  # 1.50 mm
-    0.0016,  # 1.60 mm
-    0.0018   # 1.80 mm
+    0.0007112,  # 0.028 inches
+    0.0007874,  # 0.031 inches
+    0.0008382,  # 0.033 inches
+    0.0009144,  # 0.036 inches
+    0.0009906,  # 0.039 inches
+    0.0010668,  # 0.042 inches
+    0.0011176,  # 0.044 inches
+    0.0011938,  # 0.047 inches
+    0.0012446,  # 0.049 inches
+    0.0013208,  # 0.052 inches
+    0.001397,   # 0.055 inches
+    0.0014986,  # 0.059 inches
+    0.0016256,  # 0.064 inches
+    0.001778    # 0.070 inches
 ]
 
 # Función para interpolar linealmente entre dos puntos
