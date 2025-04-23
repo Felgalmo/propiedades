@@ -23,7 +23,7 @@ except FileNotFoundError:
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 
-# Lista de diámetros comerciales en metros
+# Lista de diámetros comerciales en pulgadas y mmm
 COMMERCIAL_DIAMETERS = [
     0.0007,  # 0.70 mm
     0.0008,  # 0.80 mm
