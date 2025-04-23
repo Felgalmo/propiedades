@@ -163,7 +163,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             else:
                 rho = CP.PropsSI('D', 'T', p4['temperature'], 'P', p4['pressure'], refrigerant)
         except ValueError as e:
-            logger.warning("CoolProp density calculation failed: %s. Using fallback density.", str(e))
+            logger.warning("CoolProp density calculation failed for P4: %s. Using fallback density.", str(e))
             rho = 1200  # Fallback density for liquid
 
     delta_p = p4['pressure'] - p1['pressure']
@@ -344,7 +344,11 @@ def get_thermo_properties():
             p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
-            p1_density = CP.PropsSI('D', 'T', p1_temp, 'H', p1_enthalpy, refrigerant)
+            try:
+                p1_density = CP.PropsSI('D', 'T', p1_temp, 'P', p1_pressure, refrigerant)
+            except ValueError as e:
+                logger.warning("CoolProp density calculation failed for P1: %s. Using fallback density.", str(e))
+                p1_density = 1200  # Fallback density for liquid
             logger.debug("P1: pressure=%s Pa, enthalpy=%s J/kg, temp=%s K, density=%s kg/m³", p1_pressure, p1_enthalpy, p1_temp, p1_density)
 
             p2_pressure = p1_pressure
