@@ -9,11 +9,25 @@ app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
 # Cargar las bases de datos CSV al iniciar la aplicación
-df_refrigerants = pd.read_csv('refrigerants.csv')
 try:
-    df_capillary = pd.read_csv('capillary_constants.csv')
+    df_refrigerants = pd.read_csv('refrigerants.csv', encoding='utf-8-sig')
+    print("Columnas en refrigerants.csv:", df_refrigerants.columns.tolist())
+except FileNotFoundError:
+    df_refrigerants = pd.DataFrame()
+    print("Error: refrigerants.csv no encontrado")
+except Exception as e:
+    df_refrigerants = pd.DataFrame()
+    print(f"Error al leer refrigerants.csv: {str(e)}")
+
+try:
+    df_capillary = pd.read_csv('capillary_constants.csv', encoding='utf-8-sig')
+    print("Columnas en capillary_constants.csv:", df_capillary.columns.tolist())
 except FileNotFoundError:
     df_capillary = pd.DataFrame(columns=['Refrigerante', 'C'])
+    print("Error: capillary_constants.csv no encontrado")
+except Exception as e:
+    df_capillary = pd.DataFrame(columns=['Refrigerante', 'C'])
+    print(f"Error al leer capillary_constants.csv: {str(e)}")
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 
@@ -41,8 +55,26 @@ def interpolate(x, x0, x1, y0, y1):
 
 # Obtener propiedades desde el CSV con interpolación
 def get_properties_from_csv(refrigerant, temp_c):
-    df_ref = df_refrigerants[df_refrigerants['Refrigerante'] == refrigerant]
-    temps = df_ref['Temperatura (°C)'].tolist()
+    if df_refrigerants.empty:
+        raise ValueError("Archivo refrigerants.csv no cargado o vacío")
+    
+    # Buscar columna 'Refrigerante' (insensible a mayúsculas y espacios)
+    possible_columns = [col for col in df_refrigerants.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
+    if not possible_columns:
+        raise ValueError("Columna 'Refrigerante' no encontrada en refrigerants.csv")
+    refrigerant_col = possible_columns[0]
+    
+    df_ref = df_refrigerants[df_refrigerants[refrigerant_col] == refrigerant]
+    if df_ref.empty:
+        raise ValueError(f"Refrigerante {refrigerant} no encontrado en refrigerants.csv")
+    
+    temp_col = next((col for col in df_refrigerants.columns if 'Temperatura' in col), None)
+    if not temp_col:
+        raise ValueError("Columna de temperatura no encontrada en refrigerants.csv")
+    
+    temps = df_ref[temp_col].tolist()
+    if not temps:
+        raise ValueError(f"No hay datos de temperatura para {refrigerant}")
     if temp_c < min(temps) or temp_c > max(temps):
         raise ValueError(f"Temperatura {temp_c}°C fuera de rango para {refrigerant}")
     
@@ -51,20 +83,20 @@ def get_properties_from_csv(refrigerant, temp_c):
     temp_upper = min([t for t in temps if t >= temp_c], default=max(temps))
     
     if temp_lower == temp_upper:
-        row = df_ref[df_ref['Temperatura (°C)'] == temp_lower].iloc[0]
+        row = df_ref[df_ref[temp_col] == temp_lower].iloc[0]
         return {
-            'pressure_bubble': row['Presión Burbuja (bar)'] * 100000,  # Convertir a Pa
-            'pressure_dew': row['Presión Rocío (bar)'] * 100000,
-            'h_liquid': row['Entalpía Líquido (kJ/kg)'] * 1000,       # Convertir a J/kg
-            'h_vapor': row['Entalpía Vapor (kJ/kg)'] * 1000,
-            's_liquid': row['Entropía Líquido (kJ/kg·K)'] * 1000,    # Convertir a J/kg·K
-            's_vapor': row['Entropía Vapor (kJ/kg·K)'] * 1000,
-            'cp_vapor': row['Cp Vapor (kJ/kg·K)'] * 1000,            # Convertir a J/kg·K
-            'density_liquid': row.get('Densidad Líquido (kg/m³)', 1200)  # Valor por defecto si no está
+            'pressure_bubble': row.get('Presión Burbuja (bar)', 0) * 100000,  # Convertir a Pa
+            'pressure_dew': row.get('Presión Rocío (bar)', 0) * 100000,
+            'h_liquid': row.get('Entalpía Líquido (kJ/kg)', 0) * 1000,       # Convertir a J/kg
+            'h_vapor': row.get('Entalpía Vapor (kJ/kg)', 0) * 1000,
+            's_liquid': row.get('Entropía Líquido (kJ/kg·K)', 0) * 1000,    # Convertir a J/kg·K
+            's_vapor': row.get('Entropía Vapor (kJ/kg·K)', 0) * 1000,
+            'cp_vapor': row.get('Cp Vapor (kJ/kg·K)', 0) * 1000,            # Convertir a J/kg·K
+            'density_liquid': row.get('Densidad Líquido (kg/m³)', 1200)     # Valor por defecto
         }
     
-    row_lower = df_ref[df_ref['Temperatura (°C)'] == temp_lower].iloc[0]
-    row_upper = df_ref[df_ref['Temperatura (°C)'] == temp_upper].iloc[0]
+    row_lower = df_ref[df_ref[temp_col] == temp_lower].iloc[0]
+    row_upper = df_ref[df_ref[temp_col] == temp_upper].iloc[0]
     
     props = {}
     for key in ['Presión Burbuja (bar)', 'Presión Rocío (bar)', 'Entalpía Líquido (kJ/kg)', 
@@ -90,10 +122,14 @@ def get_capillary_constant(refrigerant):
     default_c = 0.0001
     if df_capillary.empty:
         return default_c
-    row = df_capillary[df_capillary['Refrigerante'] == refrigerant]
+    possible_columns = [col for col in df_capillary.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
+    if not possible_columns:
+        return default_c
+    refrigerant_col = possible_columns[0]
+    row = df_capillary[df_capillary[refrigerant_col] == refrigerant]
     if row.empty:
         return default_c
-    return row['C'].iloc[0]
+    return row.get('C', default_c)
 
 # Calcular longitud del tubo capilar
 def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling):
@@ -238,7 +274,7 @@ def get_thermo_properties():
             cop = q_evap / w_comp if w_comp != 0 else 0
 
             # Datos de saturación para la campana
-            df_ref = df_refrigerants[df_refrigerants['Refrigerante'] == refrigerant]
+            df_ref = df_refrigerants[df_refrigerants[refrigerant_col] == refrigerant]
             num_points = 50
             temp_range = (cond_temp_c - evap_temp_c) * 1.5
             temp_min = evap_temp_c - temp_range * 0.25
@@ -247,7 +283,7 @@ def get_thermo_properties():
             saturation_data = {'liquid': [], 'vapor': []}
             for i in range(num_points):
                 temp = temp_min + i * temp_step
-                if temp < min(df_ref['Temperatura (°C)']) or temp > max(df_ref['Temperatura (°C)']):
+                if temp < min(df_ref[temp_col]) or temp > max(df_ref[temp_col]):
                     continue
                 props = get_properties_from_csv(refrigerant, temp)
                 saturation_data['liquid'].append({
@@ -283,7 +319,6 @@ def get_thermo_properties():
             p2_pressure = p1_pressure
             if superheat == 0:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)
-                p2_temp = evap_temp
             else:
                 p2_temp = evap_temp + superheat
                 p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
