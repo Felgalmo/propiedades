@@ -230,7 +230,6 @@
                         refrigerantSelect.appendChild(option);
                     });
                     console.log('Refrigerantes cargados correctamente');
-                    // Trigger initial calculation after loading refrigerants
                     updateThermo();
                 } else {
                     throw new Error(data.message || 'Respuesta inválida del servidor');
@@ -250,12 +249,28 @@
         async function fetchThermoProperties() {
             console.log('Obteniendo datos del backend...');
             errorMessageDiv.textContent = '';
-            const evapTempK = parseFloat(evapTempInput.value) + 273.15;
-            const condTempK = parseFloat(condTempInput.value) + 273.15;
+            const evapTemp = parseFloat(evapTempInput.value);
+            const condTemp = parseFloat(condTempInput.value);
             const superheat = parseFloat(superheatInput.value);
             const subcooling = parseFloat(subcoolingInput.value);
             const coolingPower = parseFloat(coolingPowerInput.value);
             const coolingUnit = coolingUnitSelect.value;
+
+            if (isNaN(evapTemp) || isNaN(condTemp) || isNaN(superheat) || isNaN(subcooling) || isNaN(coolingPower)) {
+                throw new Error('Por favor, ingrese valores numéricos válidos');
+            }
+            if (condTemp <= evapTemp) {
+                throw new Error('La temperatura de condensación debe ser mayor que la de evaporación');
+            }
+            if (superheat < 0 || subcooling < 0) {
+                throw new Error('El sobrecalentamiento y subenfriamiento no pueden ser negativos');
+            }
+            if (coolingPower <= 0) {
+                throw new Error('La potencia de enfriamiento debe ser mayor que cero');
+            }
+
+            const evapTempK = evapTemp + 273.15;
+            const condTempK = condTemp + 273.15;
 
             try {
                 const response = await fetch('/thermo', {
@@ -291,6 +306,7 @@
                 presionBajaSpan.textContent = 'N/A';
                 presionAltaSpan.textContent = 'N/A';
                 capillaryTableBody.innerHTML = '';
+                throw error;
             }
         }
 
@@ -330,20 +346,21 @@
             presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar ${presionAltaPsi} psi`;
         }
 
-        function updateThermo() {
+        async function updateThermo() {
             if (!refrigerantSelect.value) {
                 errorMessageDiv.textContent = 'Por favor, seleccione un refrigerante';
                 return;
             }
-            fetchThermoProperties().then(() => {
+            try {
+                await fetchThermoProperties();
                 console.log('Datos actualizados, redibujando...');
                 drawCycle();
                 drawPHDiagram();
                 updatePressures();
-            }).catch(error => {
+            } catch (error) {
                 console.error('Error al actualizar:', error);
                 errorMessageDiv.textContent = 'Error al actualizar: ' + error.message;
-            });
+            }
         }
 
         function getPhase(point, pointId) {
@@ -582,7 +599,7 @@
             const plotHeight = 233 - 2 * marginY;
 
             const cyclePoints = [
-                thermo, thermoData.points['1'],
+                thermoData.points['1'],
                 thermoData.points['2'],
                 thermoData.points['3'],
                 thermoData.points['4']
@@ -705,7 +722,7 @@
                         `Fase: ${getPhase(thermoPoint, hoveredPoint)}`
                     ].join('\n');
                     const textWidth = Math.max(...text.split('\n').map(line => phCtx.measureText(line).width));
-                    const textHeight = 6 * 12.6; // 6 lines at 12.6px
+                    const textHeight = 6 * 12.6;
                     const boxX = point.x + 10;
                     const boxY = point.y - textHeight - 10;
                     phCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
@@ -727,7 +744,6 @@
             requestAnimationFrame(animate);
         }
 
-        // Inicializar
         loadRefrigerants();
         animate();
     </script>
