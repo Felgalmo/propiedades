@@ -119,7 +119,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     }
 
 def get_capillary_constant(refrigerant):
-    default_c = 0.0001
+    default_c = 4  # Adjusted to 4 as requested
     if df_capillary.empty:
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
@@ -165,11 +165,13 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
         except ValueError as e:
             logger.warning("CoolProp density calculation failed for P4: %s. Using fallback density.", str(e))
             rho = 1200  # Fallback density for liquid
+    logger.debug("Densidad P4: %s kg/m³", rho)
 
     delta_p = p4['pressure'] - p1['pressure']
     if delta_p <= 0:
         logger.error("Delta P no positivo: %s", delta_p)
         raise ValueError("Delta P debe ser positivo")
+    logger.debug("Diferencia de presión: %s Pa", delta_p)
 
     C = get_capillary_constant(refrigerant)
     logger.debug("Constante capilar C: %s", C)
@@ -177,15 +179,20 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            denominator = C * (D ** 2.5) * math.sqrt(rho * delta_p)
-            if abs(denominator) < 1e-6:
+            # Calculate each term for precision
+            d_2_5 = D ** 2.5
+            sqrt_rho_delta_p = math.sqrt(rho * delta_p)
+            denominator = C * d_2_5 * sqrt_rho_delta_p
+            logger.debug("Diámetro: %s m, D^2.5: %s m^2.5, sqrt(rho*delta_p): %s kg/(m^2 s), Denominador: %s kg/s",
+                         D, d_2_5, sqrt_rho_delta_p, denominator)
+            if abs(denominator) < 1e-5:  # Increased threshold for stability
                 logger.warning("Denominador demasiado pequeño para diámetro %s: %s", D, denominator)
                 length = float('inf')
             else:
                 length = (m_dot / denominator) ** 2
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
-                'length_m': round(length, 2) if length < 1000 else 'N/A'  # Avoid unrealistic lengths
+                'length_m': round(length, 3) if length < 100 else 'N/A'  # More precision, realistic cap
             })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
