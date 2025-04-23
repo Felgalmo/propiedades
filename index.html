@@ -57,6 +57,10 @@
         #capillaryTable th {
             background-color: #e0e0e0;
         }
+        #errorMessage {
+            color: red;
+            margin: 10px 0;
+        }
     </style>
 </head>
 <body>
@@ -64,10 +68,11 @@
         <div class="control-row">
             <strong>Condiciones del Ciclo de Refrigeración</strong>
         </div>
+        <div id="errorMessage"></div>
         <div class="control-row">
             <label>Refrigerante: </label>
             <select id="refrigerant">
-                <!-- Las opciones se llenarán dinámicamente -->
+                <option value="">Cargando...</option>
             </select>
         </div>
         <div class="control-row">
@@ -144,7 +149,6 @@
     </div>
     
     <script>
-        // Mapa de diámetros comerciales (en metros) a pulgadas
         const COMMERCIAL_DIAMETERS_INCHES = {
             0.0007112: 0.028,
             0.0007874: 0.031,
@@ -179,6 +183,7 @@
         const presionBajaSpan = document.getElementById('presionBaja');
         const presionAltaSpan = document.getElementById('presionAlta');
         const capillaryTableBody = document.getElementById('capillaryTableBody');
+        const errorMessageDiv = document.getElementById('errorMessage');
 
         const x1 = 30, x2 = 450, y1 = 30, y2 = 330, pipeThickness = 18;
         const fanRadius = 24;
@@ -207,11 +212,15 @@
             capillary_lengths: []
         };
 
-        async function loadRefrigerants() {
+        async function loadRefrigerants(attempt = 1, maxAttempts = 3) {
+            console.log(`Intentando cargar refrigerantes, intento ${attempt}/${maxAttempts}`);
+            errorMessageDiv.textContent = '';
             try {
-                const response = await fetch('/refrigerants');
+                const response = await fetch('/refrigerants', { method: 'GET', headers: { 'Accept': 'application/json' } });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-                if (data.status === 'success') {
+                console.log('Respuesta de /refrigerants:', data);
+                if (data.status === 'success' && Array.isArray(data.refrigerants)) {
                     refrigerantSelect.innerHTML = '';
                     data.refrigerants.forEach(refrigerant => {
                         const option = document.createElement('option');
@@ -220,16 +229,27 @@
                         if (refrigerant === 'R134a') option.selected = true;
                         refrigerantSelect.appendChild(option);
                     });
+                    console.log('Refrigerantes cargados correctamente');
+                    // Trigger initial calculation after loading refrigerants
+                    updateThermo();
                 } else {
-                    console.error('Error al cargar refrigerantes:', data.message);
+                    throw new Error(data.message || 'Respuesta inválida del servidor');
                 }
             } catch (error) {
-                console.error('Error al conectar con el backend para refrigerantes:', error);
+                console.error('Error al cargar refrigerantes:', error);
+                if (attempt < maxAttempts) {
+                    console.log(`Reintentando carga de refrigerantes en 1 segundo...`);
+                    setTimeout(() => loadRefrigerants(attempt + 1, maxAttempts), 1000);
+                } else {
+                    errorMessageDiv.textContent = 'Error al cargar refrigerantes: ' + error.message;
+                    refrigerantSelect.innerHTML = '<option value="">Error al cargar</option>';
+                }
             }
         }
 
         async function fetchThermoProperties() {
             console.log('Obteniendo datos del backend...');
+            errorMessageDiv.textContent = '';
             const evapTempK = parseFloat(evapTempInput.value) + 273.15;
             const condTempK = parseFloat(condTempInput.value) + 273.15;
             const superheat = parseFloat(superheatInput.value);
@@ -240,7 +260,7 @@
             try {
                 const response = await fetch('/thermo', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({
                         refrigerant: refrigerantSelect.value,
                         evap_temp: evapTempK,
@@ -250,32 +270,27 @@
                         cooling_power: { value: coolingPower, unit: coolingUnit }
                     })
                 });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
+                console.log('Respuesta de /thermo:', data);
                 if (data.status === 'success') {
                     thermoData = data;
-                    console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
                     massFlowSpan.textContent = thermoData.mass_flow.toFixed(4);
                     updatePressures();
                     updateCapillaryTable();
                     drawPHDiagram();
                 } else {
-                    console.error('Error en la respuesta:', data.message);
-                    copValueSpan.textContent = 'N/A';
-                    massFlowSpan.textContent = 'N/A';
-                    presionBajaSpan.textContent = 'N/A';
-                    presionAltaSpan.textContent = 'N/A';
-                    capillaryTableBody.innerHTML = '';
-                    alert('Error del servidor: ' + data.message);
+                    throw new Error(data.message || 'Error en los cálculos');
                 }
             } catch (error) {
                 console.error('Error al conectar con el backend:', error);
+                errorMessageDiv.textContent = 'Error al calcular: ' + error.message;
                 copValueSpan.textContent = 'N/A';
                 massFlowSpan.textContent = 'N/A';
                 presionBajaSpan.textContent = 'N/A';
                 presionAltaSpan.textContent = 'N/A';
                 capillaryTableBody.innerHTML = '';
-                alert('No se pudo conectar al servidor. Revisa la consola.');
             }
         }
 
@@ -308,14 +323,18 @@
             const P3 = thermoData.points['3'].pressure / 100000;
             const presionBaja = P2 - presionAtm;
             const presionAlta = P3 - presionAtm;
-            const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
-            const presionAltaPsi = (presionAlta * 14.7).toFixed(2);
+            const presionBajaPsi = (presionBaja * 14.5038).toFixed(2);
+            const presionAltaPsi = (presionAlta * 14.5038).toFixed(2);
 
             presionBajaSpan.textContent = `${presionBaja.toFixed(2)} bar ${presionBajaPsi} psi`;
             presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar ${presionAltaPsi} psi`;
         }
 
         function updateThermo() {
+            if (!refrigerantSelect.value) {
+                errorMessageDiv.textContent = 'Por favor, seleccione un refrigerante';
+                return;
+            }
             fetchThermoProperties().then(() => {
                 console.log('Datos actualizados, redibujando...');
                 drawCycle();
@@ -323,6 +342,7 @@
                 updatePressures();
             }).catch(error => {
                 console.error('Error al actualizar:', error);
+                errorMessageDiv.textContent = 'Error al actualizar: ' + error.message;
             });
         }
 
@@ -478,10 +498,238 @@
 
             const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
             const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImgReturns:
-- The density is now included for all points (P1, P2, P3, P4) in the backend response.
-- The tooltip in the P-h diagram displays the density (`ρ`) in `kg/m³` when hovering over each point, alongside pressure, temperature, enthalpy, and phase.
-- The modifications ensure compatibility with both standard and custom refrigerants, using appropriate data sources (CoolProp or CSV).
-- The tooltip box size is adjusted to accommodate the additional density line, maintaining readability.
+            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
+                cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
+            } else {
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(compressorX, compressorY, compressorWidth, compressorHeight);
+            }
 
-Ensure that the `refrigerants.csv` file for custom refrigerants includes a `Densidad Vapor (kg/m³)` column for accurate vapor density data, or the default value (50 kg/m³) will be used.
+            const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
+            const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
+            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
+                cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
+            } else {
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(expansionX, expansionY, expansionWidth, expansionHeight);
+            }
+
+            particles.forEach(particle => {
+                particle.move();
+                particle.draw();
+            });
+        }
+
+        let mouseX = -100, mouseY = -100;
+        let hoveredPoint = null;
+
+        phCanvas.addEventListener('mousemove', (event) => {
+            const rect = phCanvas.getBoundingClientRect();
+            mouseX = event.clientX - rect.left;
+            mouseY = event.clientY - rect.top;
+            drawPHDiagram();
+        });
+
+        phCanvas.addEventListener('mouseout', () => {
+            mouseX = -100;
+            mouseY = -100;
+            hoveredPoint = null;
+            drawPHDiagram();
+        });
+
+        function getPointsPH() {
+            const cyclePoints = [
+                thermoData.points['1'],
+                thermoData.points['2'],
+                thermoData.points['3'],
+                thermoData.points['4']
+            ];
+            const cyclePressures = cyclePoints.map(p => p.pressure);
+            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
+
+            const minP = Math.min(...cyclePressures) * 0.8;
+            const maxP = Math.max(...cyclePressures) * 1.2;
+            const minH = Math.min(...cycleEnthalpies) * 0.9;
+            const maxH = Math.max(...cycleEnthalpies) * 1.1;
+
+            const marginX = 32.4;
+            const marginY = 25.92;
+            const plotWidth = 324 - 2 * marginX;
+            const plotHeight = 233 - 2 * marginY;
+
+            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
+            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
+
+            return [
+                { x: scaleX(cyclePoints[0].enthalpy), y: scaleY(cyclePoints[0].pressure), label: '1', temp: cyclePoints[0].temperature, density: cyclePoints[0].density },
+                { x: scaleX(cyclePoints[1].enthalpy), y: scaleY(cyclePoints[1].pressure), label: '2', temp: cyclePoints[1].temperature, density: cyclePoints[1].density },
+                { x: scaleX(cyclePoints[2].enthalpy), y: scaleY(cyclePoints[2].pressure), label: '3', temp: cyclePoints[2].temperature, density: cyclePoints[2].density },
+                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].temperature, density: cyclePoints[3].density }
+            ];
+        }
+
+        function drawPHDiagram() {
+            const pixelRatio = window.devicePixelRatio || 1;
+            phCanvas.width = 324 * pixelRatio;
+            phCanvas.height = 233 * pixelRatio;
+            phCtx.scale(pixelRatio, pixelRatio);
+
+            phCtx.clearRect(0, 0, 324, 233);
+
+            const marginX = 32.4;
+            const marginY = 25.92;
+            const plotWidth = 324 - 2 * marginX;
+            const plotHeight = 233 - 2 * marginY;
+
+            const cyclePoints = [
+                thermo, thermoData.points['1'],
+                thermoData.points['2'],
+                thermoData.points['3'],
+                thermoData.points['4']
+            ];
+            const cyclePressures = cyclePoints.map(p => p.pressure);
+            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
+
+            const minP = Math.min(...cyclePressures) * 0.8;
+            const maxP = Math.max(...cyclePressures) * 1.2;
+            const minH = Math.min(...cycleEnthalpies) * 0.9;
+            const maxH = Math.max(...cycleEnthalpies) * 1.1;
+
+            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
+            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
+
+            phCtx.beginPath();
+            phCtx.moveTo(marginX, marginY);
+            phCtx.lineTo(marginX, marginY + plotHeight);
+            phCtx.lineTo(marginX + plotWidth, marginY + plotHeight);
+            phCtx.strokeStyle = 'black';
+            phCtx.lineWidth = 1.08;
+            phCtx.stroke();
+
+            phCtx.font = '14.4px Arial';
+            phCtx.fillStyle = 'black';
+            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
+            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
+
+            const logMinP = Math.log(minP);
+            const logMaxP = Math.log(maxP);
+            const numPressureTicks = 6;
+            for (let i = 0; i < numPressureTicks; i++) {
+                const logP = logMinP + (logMaxP - logMinP) * i / (numPressureTicks - 1);
+                const p = Math.exp(logP);
+                const y = scaleY(p);
+                phCtx.beginPath();
+                phCtx.moveTo(marginX - 5.4, y);
+                phCtx.lineTo(marginX + 5.4, y);
+                phCtx.stroke();
+                phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
+            }
+
+            const numEnthalpyTicks = 6;
+            const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
+            for (let i = 0; i < numEnthalpyTicks; i++) {
+                const h = minH + i * hStep;
+                const x = scaleX(h);
+                phCtx.beginPath();
+                phCtx.moveTo(x, marginY + plotHeight - 5.4);
+                phCtx.lineTo(x, marginY + plotHeight + 5.4);
+                phCtx.stroke();
+                phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
+            }
+
+            if (thermoData.saturation.liquid.length > 0) {
+                phCtx.beginPath();
+                thermoData.saturation.liquid.forEach((point, index) => {
+                    const x = scaleX(point.enthalpy);
+                    const y = scaleY(point.pressure);
+                    if (index === 0) phCtx.moveTo(x, y);
+                    else phCtx.lineTo(x, y);
+                });
+                phCtx.strokeStyle = 'green';
+                phCtx.lineWidth = 1.62;
+                phCtx.stroke();
+            }
+
+            if (thermoData.saturation.vapor.length > 0) {
+                phCtx.beginPath();
+                thermoData.saturation.vapor.forEach((point, index) => {
+                    const x = scaleX(point.enthalpy);
+                    const y = scaleY(point.pressure);
+                    if (index === 0) phCtx.moveTo(x, y);
+                    else phCtx.lineTo(x, y);
+                });
+                phCtx.strokeStyle = 'purple';
+                phCtx.lineWidth = 1.62;
+                phCtx.stroke();
+            }
+
+            const pointsPH = getPointsPH();
+            if (pointsPH.length === 4) {
+                phCtx.beginPath();
+                pointsPH.forEach((point, index) => {
+                    if (index === 0) phCtx.moveTo(point.x, point.y);
+                    else phCtx.lineTo(point.x, point.y);
+                });
+                phCtx.lineTo(pointsPH[0].x, pointsPH[0].y);
+                phCtx.strokeStyle = 'blue';
+                phCtx.lineWidth = 2.16;
+                phCtx.stroke();
+
+                pointsPH.forEach(point => {
+                    phCtx.beginPath();
+                    phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
+                    phCtx.fillStyle = 'red';
+                    phCtx.fill();
+                    phCtx.font = '12.6px Arial';
+                    phCtx.fillStyle = 'black';
+                    const tempC = (point.temp - 273.15).toFixed(1);
+                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
+
+                    const dx = mouseX - point.x;
+                    const dy = mouseY - point.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 10) {
+                        hoveredPoint = point.label;
+                    }
+                });
+
+                if (hoveredPoint) {
+                    const point = pointsPH.find(p => p.label === hoveredPoint);
+                    const thermoPoint = thermoData.points[hoveredPoint];
+                    const text = [
+                        `P${hoveredPoint}`,
+                        `P: ${(thermoPoint.pressure / 100000).toFixed(2)} bar`,
+                        `T: ${(thermoPoint.temperature - 273.15).toFixed(1)}°C`,
+                        `h: ${(thermoPoint.enthalpy / 1000).toFixed(1)} kJ/kg`,
+                        `ρ: ${thermoPoint.density.toFixed(1)} kg/m³`,
+                        `Fase: ${getPhase(thermoPoint, hoveredPoint)}`
+                    ].join('\n');
+                    const textWidth = Math.max(...text.split('\n').map(line => phCtx.measureText(line).width));
+                    const textHeight = 6 * 12.6; // 6 lines at 12.6px
+                    const boxX = point.x + 10;
+                    const boxY = point.y - textHeight - 10;
+                    phCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                    phCtx.fillRect(boxX, boxY, textWidth + 10, textHeight + 10);
+                    phCtx.strokeStyle = 'black';
+                    phCtx.strokeRect(boxX, boxY, textWidth + 10, textHeight + 10);
+                    phCtx.fillStyle = 'black';
+                    phCtx.font = '12.6px Arial';
+                    text.split('\n').forEach((line, index) => {
+                        phCtx.fillText(line, boxX + 5, boxY + 12.6 * (index + 1));
+                    });
+                }
+            }
+        }
+
+        function animate() {
+            fanAngle += 0.05;
+            drawCycle();
+            requestAnimationFrame(animate);
+        }
+
+        // Inicializar
+        loadRefrigerants();
+        animate();
+    </script>
+</body>
+</html>
