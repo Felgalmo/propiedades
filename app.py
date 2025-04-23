@@ -96,7 +96,7 @@ def get_capillary_constant(refrigerant):
     return row['C'].iloc[0]
 
 # Calcular longitud del tubo capilar
-def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2):
+def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling):
     is_custom = refrigerant in custom_refrigerants
     # Convertir cooling_power a vatios según la unidad
     cooling_power_watts = cooling_power['value']
@@ -115,7 +115,17 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2):
         props = get_properties_from_csv(refrigerant, p4['temperature'] - 273.15)
         rho = props['density_liquid']
     else:
-        rho = CP.PropsSI('D', 'T', p4['temperature'], 'P', p4['pressure'], refrigerant)
+        try:
+            if subcooling == 0:
+                # Use saturated liquid density to avoid saturation boundary issues
+                rho = CP.PropsSI('D', 'T', p4['temperature'], 'Q', 0, refrigerant)
+            else:
+                # Subcooled state should be safe
+                rho = CP.PropsSI('D', 'T', p4['temperature'], 'P', p4['pressure'], refrigerant)
+        except ValueError as e:
+            # Fallback: Use saturated liquid density with slight temperature adjustment
+            print(f"CoolProp density calculation failed: {str(e)}. Using saturated liquid fallback.")
+            rho = CP.PropsSI('D', 'T', p4['temperature'] - 0.1, 'Q', 0, refrigerant)
 
     # Calcular Delta P
     delta_p = p4['pressure'] - p1['pressure']  # Pa
@@ -309,7 +319,7 @@ def get_thermo_properties():
         p2 = {'pressure': p2_pressure, 'enthalpy': p2_enthalpy, 'temperature': p2_temp}
         p4 = {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': p4_temp}
         capillary_lengths, mass_flow = calculate_capillary_lengths(
-            refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy
+            refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy, subcooling
         )
 
         response = {
