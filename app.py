@@ -1,29 +1,45 @@
 # -*- coding: utf-8 -*-
+import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-import CoolProp.CoolProp as CP
 import pandas as pd
 import logging
 import math
 
+# Check for CoolProp availability
+try:
+    import CoolProp.CoolProp as CP
+except ImportError:
+    CP = None
+    logging.error("CoolProp not installed. Please install it using 'pip install CoolProp'")
+
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": ["https://mundochiller.com", "https://www.mundochiller.com"]}})
+# Allow CORS for specific origins, including localhost for development
+CORS(app, resources={r"/*": {"origins": ["https://mundochiller.com", "https://www.mundochiller.com", "http://localhost:3000"]}})
 
 # Configurar logging para depuración
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Determinar la ruta base del directorio de la aplicación
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_DIR = os.path.join(BASE_DIR, 'propiedades')
+
 # Cargar la base de datos CSV al iniciar la aplicación
-df_refrigerants = pd.read_csv('/root/propiedades/refrigerants.csv')
 try:
-    df_capillary_constants = pd.read_csv('/root/propiedades/capillary_constants.csv')
+    df_refrigerants = pd.read_csv(os.path.join(CSV_DIR, 'refrigerants.csv'))
+except FileNotFoundError:
+    logger.error("refrigerants.csv not found in %s", CSV_DIR)
+    df_refrigerants = pd.DataFrame()
+try:
+    df_capillary_constants = pd.read_csv(os.path.join(CSV_DIR, 'capillary_constants.csv'))
 except FileNotFoundError:
     logger.warning("capillary_constants.csv not found, using default C value")
     df_capillary_constants = pd.DataFrame(columns=['Refrigerant', 'C'])
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
 
-# Lista de diámetros comerciales en pulgadas y mmm
+# Lista de diámetros comerciales en pulgadas y mm
 COMMERCIAL_DIAMETERS = [
     0.0007,  # 0.70 mm
     0.0008,  # 0.80 mm
@@ -51,6 +67,8 @@ def interpolate(x, x0, x1, y0, y1):
 # Obtener propiedades desde el CSV con interpolación
 def get_properties_from_csv(refrigerant, temp_c):
     df_ref = df_refrigerants[df_refrigerants['Refrigerante'] == refrigerant]
+    if df_ref.empty:
+        raise ValueError(f"Refrigerante {refrigerant} no encontrado en la base de datos")
     temps = df_ref['Temperatura (°C)'].tolist()
     if temp_c < min(temps) or temp_c > max(temps):
         raise ValueError(f"Temperatura {temp_c}°C fuera de rango para {refrigerant}")
@@ -122,6 +140,9 @@ def get_capillary_constant(refrigerant):
 
 # Función interna para calcular propiedades termodinámicas (reutilizada por /thermo y /capillary)
 def calculate_thermo_properties(refrigerant, evap_temp, cond_temp, superheat, subcooling):
+    if not CP and refrigerant not in custom_refrigerants:
+        return {'status': 'error', 'message': 'CoolProp no está disponible para este refrigerante'}
+    
     is_custom = refrigerant in custom_refrigerants
     evap_temp_c = evap_temp - 273.15
     cond_temp_c = cond_temp - 273.15
@@ -293,7 +314,10 @@ def calculate_thermo_properties(refrigerant, evap_temp, cond_temp, superheat, su
 @app.route('/refrigerants', methods=['GET'])
 def get_refrigerants():
     try:
-        refrigerants = CP.FluidsList() + custom_refrigerants
+        if CP:
+            refrigerants = CP.FluidsList() + custom_refrigerants
+        else:
+            refrigerants = custom_refrigerants
         logger.info("Refrigerantes soportados: %s", refrigerants)
         return jsonify({'status': 'success', 'refrigerants': refrigerants})
     except Exception as e:
@@ -389,4 +413,6 @@ def calculate_capillary():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+    # Obtener el puerto del entorno (para plataformas como Render/Heroku)
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port, debug=True)
