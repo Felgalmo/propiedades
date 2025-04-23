@@ -121,6 +121,9 @@
         <div class="output-row">
             <label>Caudal Másico (kg/s): </label><span id="massFlow">N/A</span>
         </div>
+        <div class="output-row">
+            <label>Densidad en Punto 4 (kg/m³): </label><span id="densityPoint4">N/A</span>
+        </div>
         <div class="control-row">
             <button onclick="updateThermo()">Calcular</button>
         </div>
@@ -178,6 +181,7 @@
         const altitudeSelect = document.getElementById('altitude');
         const presionBajaSpan = document.getElementById('presionBaja');
         const presionAltaSpan = document.getElementById('presionAlta');
+        const densityPoint4Span = document.getElementById('densityPoint4');
         const capillaryTableBody = document.getElementById('capillaryTableBody');
 
         const x1 = 30, x2 = 450, y1 = 30, y2 = 330, pipeThickness = 18;
@@ -198,10 +202,10 @@
             cop: 0,
             mass_flow: 0,
             points: {
-                '1': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '2': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '3': { pressure: 0, enthalpy: 0, temperature: 0 },
-                '4': { pressure: 0, enthalpy: 0, temperature: 0 }
+                '1': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '2': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '3': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
+                '4': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 }
             },
             saturation: { liquid: [], vapor: [] },
             capillary_lengths: []
@@ -256,6 +260,7 @@
                     console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
                     massFlowSpan.textContent = thermoData.mass_flow.toFixed(4);
+                    densityPoint4Span.textContent = thermoData.points['4'].density.toFixed(2);
                     updatePressures();
                     updateCapillaryTable();
                     drawPHDiagram();
@@ -263,6 +268,7 @@
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
                     massFlowSpan.textContent = 'N/A';
+                    densityPoint4Span.textContent = 'N/A';
                     presionBajaSpan.textContent = 'N/A';
                     presionAltaSpan.textContent = 'N/A';
                     capillaryTableBody.innerHTML = '';
@@ -272,6 +278,7 @@
                 console.error('Error al conectar con el backend:', error);
                 copValueSpan.textContent = 'N/A';
                 massFlowSpan.textContent = 'N/A';
+                densityPoint4Span.textContent = 'N/A';
                 presionBajaSpan.textContent = 'N/A';
                 presionAltaSpan.textContent = 'N/A';
                 capillaryTableBody.innerHTML = '';
