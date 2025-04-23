@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Refrigeration Simulator with Integrated  P-h  Diagram</title>
+    <title>Simulador de Refrigeración con Diagrama P-h Integrado</title>
     <style>
         #mainContainer { 
             position: relative; 
@@ -45,50 +45,50 @@
             margin-bottom: 10px;
         }
         #capillaryTable {
-            width: 100%;
+            margin-top: 20px;
             border-collapse: collapse;
-            margin-top: 10px;
+            width: 480px;
         }
         #capillaryTable th, #capillaryTable td {
-            border: 1px solid #ccc;
-            padding: 5px;
+            border: 1px solid black;
+            padding: 8px;
             text-align: center;
         }
         #capillaryTable th {
-            background-color: #f0f0f0;
-        }
-        #loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-family: Arial, sans-serif;
-            font-size: 16px;
-            color: #333;
+            background-color: #e0e0e0;
         }
     </style>
 </head>
 <body>
     <div id="controls">
         <div class="control-row">
-            <strong>Refrigeration Cycle Conditions</strong>
+            <strong>Condiciones del Ciclo de Refrigeración</strong>
         </div>
         <div class="control-row">
-            <label>Refrigerant: </label>
+            <label>Refrigerante: </label>
             <select id="refrigerant">
-                <!-- Options will be populated dynamically -->
+                <!-- Las opciones se llenarán dinámicamente -->
             </select>
         </div>
         <div class="control-row">
-            <label>Evap. Temp (°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
+            <label>T. Evap (°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
             <label>Superheat (°C): </label><input type="number" id="superheat" value="0" step="0.1">
         </div>
         <div class="control-row">
-            <label>Cond. Temp (°C): </label><input type="number" id="condTemp" value="40" step="0.1">
+            <label>T. Cond (°C): </label><input type="number" id="condTemp" value="40" step="0.1">
             <label>Subcooling (°C): </label><input type="number" id="subcooling" value="0" step="0.1">
         </div>
         <div class="control-row">
-            <label>Altitude above Sea Level: </label>
+            <label>Potencia de Enfriamiento: </label>
+            <input type="number" id="coolingPower" value="1000" step="100">
+            <select id="coolingUnit">
+                <option value="W" selected>W</option>
+                <option value="Btu/h">Btu/h</option>
+                <option value="kcal/h">kcal/h</option>
+            </select>
+        </div>
+        <div class="control-row">
+            <label>Altura sobre el Nivel del Mar: </label>
             <select id="altitude" onchange="updatePressures()">
                 <option value="0">0 m</option>
                 <option value="252">252 m</option>
@@ -109,59 +109,38 @@
                 <option value="4000">4000 m</option>
             </select>
         </div>
-        <div class="control-row">
-            <strong>Capillary Tube Design</strong>
-        </div>
-        <div class="control-row">
-            <label>Cooling Power: </label><input type="number" id="powerValue" value="1000" step="10">
-            <label>Unit: </label>
-            <select id="powerUnit">
-                <option value="W">W</option>
-                <option value="HP">HP</option>
-                <option value="kcal/h">kcal/h</option>
-                <option value="Btu/h">Btu/h</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <button onclick="updateThermo()">Calculate Cycle</button>
-            <button onclick="calculateCapillary()">Calculate Capillary</button>
+        <div class="output-row">
+            <label>Presión de Baja (bar psi): </label><span id="presionBaja">N/A</span>
         </div>
         <div class="output-row">
-            <label>Low Pressure (bar psi): </label><span id="presionBaja">N/A</span>
-        </div>
-        <div class="output-row">
-            <label>High Pressure (bar psi): </label><span id="presionAlta">N/A</span>
+            <label>Presión de Alta (bar psi): </label><span id="presionAlta">N/A</span>
         </div>
         <div class="output-row">
             <label>COP: </label><span id="copValue">N/A</span>
         </div>
         <div class="output-row">
-            <label>Mass Flow (kg/h): </label><span id="massFlow">N/A</span>
+            <label>Caudal Másico (kg/s): </label><span id="massFlow">N/A</span>
         </div>
-        <div class="output-row">
-            <label>Pressure Drop (bar): </label><span id="deltaP">N/A</span>
-        </div>
-        <div class="output-row">
-            <label>Density (kg/m³): </label><span id="density">N/A</span>
-        </div>
-        <div class="output-row">
-            <table id="capillaryTable">
-                <thead>
-                    <tr>
-                        <th>Diameter (mm)</th>
-                        <th>Length (m)</th>
-                    </tr>
-                </thead>
-                <tbody id="capillaryTableBody">
-                    <tr><td colspan="2">No data available</td></tr>
-                </tbody>
-            </table>
+        <div class="control-row">
+            <button onclick="updateThermo()">Calcular</button>
         </div>
     </div>
     <div id="mainContainer">
-        <div id="loading">Loading...</div>
         <canvas id="cycleCanvas" width="480" height="360"></canvas>
         <canvas id="phCanvas" width="324" height="233"></canvas>
+    </div>
+    <div>
+        <table id="capillaryTable">
+            <thead>
+                <tr>
+                    <th>Diámetro (mm)</th>
+                    <th>Longitud (m)</th>
+                </tr>
+            </thead>
+            <tbody id="capillaryTableBody">
+                <!-- Se llenará dinámicamente -->
+            </tbody>
+        </table>
     </div>
     
     <script>
@@ -174,33 +153,23 @@
         const condTempInput = document.getElementById('condTemp');
         const superheatInput = document.getElementById('superheat');
         const subcoolingInput = document.getElementById('subcooling');
+        const coolingPowerInput = document.getElementById('coolingPower');
+        const coolingUnitSelect = document.getElementById('coolingUnit');
         const copValueSpan = document.getElementById('copValue');
+        const massFlowSpan = document.getElementById('massFlow');
         const altitudeSelect = document.getElementById('altitude');
         const presionBajaSpan = document.getElementById('presionBaja');
         const presionAltaSpan = document.getElementById('presionAlta');
-        const powerValueInput = document.getElementById('powerValue');
-        const powerUnitSelect = document.getElementById('powerUnit');
-        const massFlowSpan = document.getElementById('massFlow');
-        const deltaPSpan = document.getElementById('deltaP');
-        const densitySpan = document.getElementById('density');
         const capillaryTableBody = document.getElementById('capillaryTableBody');
 
         const x1 = 30, x2 = 450, y1 = 30, y2 = 330, pipeThickness = 18;
         const fanRadius = 24;
         let fanAngle = 0;
 
-        const offscreenCanvas = document.createElement('canvas');
-        offscreenCanvas.width = cycleCanvas.width;
-        offscreenCanvas.height = cycleCanvas.height;
-        const offscreenCtx = offscreenCanvas.getContext('2d');
-
-        let condenserImg, evaporatorImg, compressorImg, expansionImg;
-        const imageUrls = [
-            '/static/condensadordef.png',
-            '/static/evaporadordef.png',
-            '/static/compressor.png',
-            '/static/expansionsimulador.png'
-        ];
+        const condenserImg = new Image(); condenserImg.src = 'condensadordef.png';
+        const evaporatorImg = new Image(); evaporatorImg.src = 'evaporadordef.png';
+        const compressorImg = new Image(); compressorImg.src = 'compressor.png';
+        const expansionImg = new Image(); expansionImg.src = 'expansionsimulador.png';
 
         let thermoData = {
             refrigerant: 'R134a',
@@ -209,60 +178,22 @@
             superheat: 0,
             subcooling: 0,
             cop: 0,
+            mass_flow: 0,
             points: {
                 '1': { pressure: 0, enthalpy: 0, temperature: 0 },
                 '2': { pressure: 0, enthalpy: 0, temperature: 0 },
                 '3': { pressure: 0, enthalpy: 0, temperature: 0 },
                 '4': { pressure: 0, enthalpy: 0, temperature: 0 }
             },
-            saturation: { liquid: [], vapor: [] }
+            saturation: { liquid: [], vapor: [] },
+            capillary_lengths: []
         };
 
-        function preloadImages(imageUrls, callback) {
-            let loadedImages = 0;
-            const totalImages = imageUrls.length;
-            const images = [];
-
-            imageUrls.forEach((url, index) => {
-                images[index] = new Image();
-                images[index].src = url;
-                images[index].onload = () => {
-                    loadedImages++;
-                    if (loadedImages === totalImages) {
-                        callback(images);
-                    }
-                };
-                images[index].onerror = () => {
-                    console.error(`Error loading image: ${url}`);
-                    loadedImages++;
-                    if (loadedImages === totalImages) {
-                        callback(images);
-                    }
-                };
-            });
-        }
-
         async function loadRefrigerants() {
-            const cacheKey = 'refrigerants';
-            const cachedData = localStorage.getItem(cacheKey);
-            if (cachedData) {
-                const data = JSON.parse(cachedData);
-                refrigerantSelect.innerHTML = '';
-                data.refrigerants.forEach(refrigerant => {
-                    const option = document.createElement('option');
-                    option.value = refrigerant;
-                    option.textContent = refrigerant;
-                    if (refrigerant === 'R134a') option.selected = true;
-                    refrigerantSelect.appendChild(option);
-                });
-                return;
-            }
-
             try {
                 const response = await fetch('/refrigerants');
                 const data = await response.json();
                 if (data.status === 'success') {
-                    localStorage.setItem(cacheKey, JSON.stringify(data));
                     refrigerantSelect.innerHTML = '';
                     data.refrigerants.forEach(refrigerant => {
                         const option = document.createElement('option');
@@ -272,19 +203,21 @@
                         refrigerantSelect.appendChild(option);
                     });
                 } else {
-                    console.error('Error loading refrigerants:', data.message);
+                    console.error('Error al cargar refrigerantes:', data.message);
                 }
             } catch (error) {
-                console.error('Error connecting to backend for refrigerants:', error);
+                console.error('Error al conectar con el backend para refrigerantes:', error);
             }
         }
 
         async function fetchThermoProperties() {
-            console.log('Fetching data from backend...');
+            console.log('Obteniendo datos del backend...');
             const evapTempK = parseFloat(evapTempInput.value) + 273.15;
             const condTempK = parseFloat(condTempInput.value) + 273.15;
             const superheat = parseFloat(superheatInput.value);
             const subcooling = parseFloat(subcoolingInput.value);
+            const coolingPower = parseFloat(coolingPowerInput.value);
+            const coolingUnit = coolingUnitSelect.value;
 
             try {
                 const response = await fetch('/thermo', {
@@ -295,92 +228,51 @@
                         evap_temp: evapTempK,
                         cond_temp: condTempK,
                         superheat: superheat,
-                        subcooling: subcooling
+                        subcooling: subcooling,
+                        cooling_power: { value: coolingPower, unit: coolingUnit }
                     })
                 });
                 const data = await response.json();
                 if (data.status === 'success') {
                     thermoData = data;
-                    console.log('Data received:', thermoData);
+                    console.log('Datos recibidos:', thermoData);
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
+                    massFlowSpan.textContent = thermoData.mass_flow.toFixed(4);
                     updatePressures();
+                    updateCapillaryTable();
                     drawPHDiagram();
                 } else {
-                    console.error('Error in response:', data.message);
+                    console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
+                    massFlowSpan.textContent = 'N/A';
                     presionBajaSpan.textContent = 'N/A';
                     presionAltaSpan.textContent = 'N/A';
-                    alert('Server error: ' + data.message);
+                    capillaryTableBody.innerHTML = '';
+                    alert('Error del servidor: ' + data.message);
                 }
             } catch (error) {
-                console.error('Error connecting to backend:', error);
+                console.error('Error al conectar con el backend:', error);
                 copValueSpan.textContent = 'N/A';
+                massFlowSpan.textContent = 'N/A';
                 presionBajaSpan.textContent = 'N/A';
                 presionAltaSpan.textContent = 'N/A';
-                alert('Could not connect to server. Check console.');
+                capillaryTableBody.innerHTML = '';
+                alert('No se pudo conectar al servidor. Revisa la consola.');
             }
         }
 
-        async function calculateCapillary() {
-            console.log('Calculating capillary tube dimensions...');
-            const evapTempK = parseFloat(evapTempInput.value) + 273.15;
-            const condTempK = parseFloat(condTempInput.value) + 273.15;
-            const superheat = parseFloat(superheatInput.value);
-            const subcooling = parseFloat(subcoolingInput.value);
-            const power = parseFloat(powerValueInput.value);
-            const powerUnit = powerUnitSelect.value;
-
-            try {
-                const response = await fetch('/capillary', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        refrigerant: refrigerantSelect.value,
-                        evap_temp: evapTempK,
-                        cond_temp: condTempK,
-                        superheat: superheat,
-                        subcooling: subcooling,
-                        power: power,
-                        power_unit: powerUnit
-                    })
-                });
-                const data = await response.json();
-                if (data.status === 'success') {
-                    console.log('Capillary data received:', data);
-                    massFlowSpan.textContent = data.mass_flow.toFixed(2);
-                    deltaPSpan.textContent = data.delta_p.toFixed(2);
-                    densitySpan.textContent = data.density.toFixed(2);
-                    
-                    // Actualizar la tabla con los resultados
-                    capillaryTableBody.innerHTML = '';
-                    if (data.capillary_results.length > 0) {
-                        data.capillary_results.forEach(result => {
-                            const row = document.createElement('tr');
-                            row.innerHTML = `
-                                <td>${result.diameter_mm.toFixed(2)}</td>
-                                <td>${result.length_m.toFixed(2)}</td>
-                            `;
-                            capillaryTableBody.appendChild(row);
-                        });
-                    } else {
-                        capillaryTableBody.innerHTML = '<tr><td colspan="2">No valid results</td></tr>';
-                    }
-                } else {
-                    console.error('Error in capillary calculation:', data.message);
-                    massFlowSpan.textContent = 'N/A';
-                    deltaPSpan.textContent = 'N/A';
-                    densitySpan.textContent = 'N/A';
-                    capillaryTableBody.innerHTML = '<tr><td colspan="2">Error in calculation</td></tr>';
-                    alert('Server error: ' + data.message);
-                }
-            } catch (error) {
-                console.error('Error connecting to backend for capillary:', error);
-                massFlowSpan.textContent = 'N/A';
-                deltaPSpan.textContent = 'N/A';
-                densitySpan.textContent = 'N/A';
-                capillaryTableBody.innerHTML = '<tr><td colspan="2">Error connecting to server</td></tr>';
-                alert('Could not connect to server. Check console.');
-            }
+        function updateCapillaryTable() {
+            capillaryTableBody.innerHTML = '';
+            thermoData.capillary_lengths.forEach(item => {
+                const row = document.createElement('tr');
+                const diameterCell = document.createElement('td');
+                diameterCell.textContent = item.diameter_mm.toFixed(2);
+                const lengthCell = document.createElement('td');
+                lengthCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
+                row.appendChild(diameterCell);
+                row.appendChild(lengthCell);
+                capillaryTableBody.appendChild(row);
+            });
         }
 
         function getPresionAtmosferica(altura) {
@@ -392,8 +284,8 @@
         function updatePressures() {
             const altura = parseInt(altitudeSelect.value);
             const presionAtm = getPresionAtmosferica(altura);
-            const P2 = thermoData.points['2'].pressure / 100000;
-            const P3 = thermoData.points['3'].pressure / 100000;
+            const P2 = thermoData.points['2'].pressure / 100000; // Presión absoluta baja en bar
+            const P3 = thermoData.points['3'].pressure / 100000; // Presión absoluta alta en bar
             const presionBaja = P2 - presionAtm;
             const presionAlta = P3 - presionAtm;
             const presionBajaPsi = (presionBaja * 14.7).toFixed(2);
@@ -405,13 +297,12 @@
 
         function updateThermo() {
             fetchThermoProperties().then(() => {
-                console.log('Data updated, redrawing...');
-                drawStaticElements();
+                console.log('Datos actualizados, redibujando...');
                 drawCycle();
                 drawPHDiagram();
                 updatePressures();
             }).catch(error => {
-                console.error('Error updating:', error);
+                console.error('Error al actualizar:', error);
             });
         }
 
@@ -422,21 +313,21 @@
             const saturationLiquid = thermoData.saturation.liquid.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.liquid[0];
             const saturationVapor = thermoData.saturation.vapor.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.vapor[0];
 
-            if (!saturationLiquid || !saturationVapor) return "Unknown";
+            if (!saturationLiquid || !saturationVapor) return "Desconocido";
 
             const hLiquid = saturationLiquid.enthalpy;
             const hVapor = saturationVapor.enthalpy;
             const margin = 2000;
 
-            if (pointId === '2' && thermoData.superheat > 0) return "Superheated Vapor";
-            if (pointId === '4' && thermoData.subcooling > 0) return "Subcooled Liquid";
+            if (pointId === '2' && thermoData.superheat > 0) return "Vapor Sobrecalentado";
+            if (pointId === '4' && thermoData.subcooling > 0) return "Líquido Subenfriado";
 
-            if (enthalpy < hLiquid - margin) return "Subcooled Liquid";
-            else if (Math.abs(enthalpy - hLiquid) <= margin) return "Saturated Liquid";
-            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mixture";
-            else if (Math.abs(enthalpy - hVapor) <= margin) return "Saturated Vapor";
-            else if (enthalpy > hVapor + margin) return "Superheated Vapor";
-            return "Unknown";
+            if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
+            else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
+            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mezcla";
+            else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
+            else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
+            return "Desconocido";
         }
 
         class Particle {
@@ -512,19 +403,19 @@
             ctx.restore();
         }
 
-        function drawStaticElements() {
-            offscreenCtx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
+        function drawCycle() {
+            cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
 
-            offscreenCtx.beginPath();
-            offscreenCtx.lineWidth = pipeThickness;
-            offscreenCtx.strokeStyle = '#43464B';
-            offscreenCtx.moveTo(x1 + pipeThickness/2, y1 + pipeThickness/2);
-            offscreenCtx.lineTo(x2 - pipeThickness/2, y1 + pipeThickness/2);
-            offscreenCtx.lineTo(x2 - pipeThickness/2, y2 - pipeThickness/2);
-            offscreenCtx.lineTo(x1 + pipeThickness/2, y2 - pipeThickness/2);
-            offscreenCtx.lineTo(x1 + pipeThickness/2, y1 + pipeThickness/2);
-            offscreenCtx.closePath();
-            offscreenCtx.stroke();
+            cycleCtx.beginPath();
+            cycleCtx.lineWidth = pipeThickness;
+            cycleCtx.strokeStyle = '#43464B';
+            cycleCtx.moveTo(x1 + pipeThickness/2, y1 + pipeThickness/2);
+            cycleCtx.lineTo(x2 - pipeThickness/2, y1 + pipeThickness/2);
+            cycleCtx.lineTo(x2 - pipeThickness/2, y2 - pipeThickness/2);
+            cycleCtx.lineTo(x1 + pipeThickness/2, y2 - pipeThickness/2);
+            cycleCtx.lineTo(x1 + pipeThickness/2, y1 + pipeThickness/2);
+            cycleCtx.closePath();
+            cycleCtx.stroke();
 
             const condenserWidth = 120, condenserHeight = 60;
             const evaporatorWidth = 120, evaporatorHeight = 60;
@@ -534,51 +425,11 @@
             const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
             const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
             if (condenserImg.complete && condenserImg.naturalWidth !== 0) {
-                offscreenCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
+                cycleCtx.drawImage(condenserImg, condenserX, condenserY, condenserWidth, condenserHeight);
             } else {
-                offscreenCtx.fillStyle = 'gray';
-                offscreenCtx.fillRect(condenserX, condenserY, condenserWidth, condenserHeight);
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(condenserX, condenserY, condenserWidth, condenserHeight);
             }
-
-            const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
-            const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-            if (evaporatorImg.complete && evaporatorImg.naturalWidth !== 0) {
-                offscreenCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
-            } else {
-                offscreenCtx.fillStyle = 'gray';
-                offscreenCtx.fillRect(evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
-            }
-
-            const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
-            const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
-            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
-                offscreenCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
-            } else {
-                offscreenCtx.fillStyle = 'gray';
-                offscreenCtx.fillRect(compressorX, compressorY, compressorWidth, compressorHeight);
-            }
-
-            const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
-            const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
-            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
-                offscreenCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
-            } else {
-                offscreenCtx.fillStyle = 'gray';
-                offscreenCtx.fillRect(expansionX, expansionY, expansionWidth, expansionHeight);
-            }
-        }
-
-        function drawCycle() {
-            cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
-            cycleCtx.drawImage(offscreenCanvas, 0, 0);
-
-            const condenserWidth = 120, condenserHeight = 60;
-            const evaporatorWidth = 120, evaporatorHeight = 60;
-            const condenserX = (x1 + x2) / 2 - condenserWidth / 2;
-            const condenserY = y1 + pipeThickness / 2 - condenserHeight / 2;
-            const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
-            const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
-
             const fanCenterX1 = condenserX + condenserWidth / 4, fanCenterY1 = condenserY + condenserHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX1, fanCenterY1, fanAngle + (2 * Math.PI / 3));
@@ -588,6 +439,14 @@
             drawFanBlade(cycleCtx, fanCenterX2, fanCenterY2, fanAngle + (2 * Math.PI / 3));
             drawFanBlade(cycleCtx, fanCenterX2, fanCenterY2, fanAngle + (4 * Math.PI / 3));
 
+            const evaporatorX = (x1 + x2) / 2 - evaporatorWidth / 2;
+            const evaporatorY = y2 - pipeThickness / 2 - evaporatorHeight / 2;
+            if (evaporatorImg.complete && evaporatorImg.naturalWidth !== 0) {
+                cycleCtx.drawImage(evaporatorImg, evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
+            } else {
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(evaporatorX, evaporatorY, evaporatorWidth, evaporatorHeight);
+            }
             const fanCenterX3 = evaporatorX + evaporatorWidth / 4, fanCenterY3 = evaporatorY + evaporatorHeight / 2;
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX3, fanCenterY3, fanAngle + (2 * Math.PI / 3));
@@ -596,6 +455,24 @@
             drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle);
             drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle + (2 * Math.PI / 3));
             drawFanBlade(cycleCtx, fanCenterX4, fanCenterY4, fanAngle + (4 * Math.PI / 3));
+
+            const compressorX = x2 - pipeThickness / 2 - compressorWidth / 2;
+            const compressorY = (y1 + y2) / 2 - compressorHeight / 2;
+            if (compressorImg.complete && compressorImg.naturalWidth !== 0) {
+                cycleCtx.drawImage(compressorImg, compressorX, compressorY, compressorWidth, compressorHeight);
+            } else {
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(compressorX, compressorY, compressorWidth, compressorHeight);
+            }
+
+            const expansionX = x1 + pipeThickness / 2 - expansionWidth / 2;
+            const expansionY = (y1 + y2) / 2 - expansionHeight / 2;
+            if (expansionImg.complete && expansionImg.naturalWidth !== 0) {
+                cycleCtx.drawImage(expansionImg, expansionX, expansionY, expansionWidth, expansionHeight);
+            } else {
+                cycleCtx.fillStyle = 'gray';
+                cycleCtx.fillRect(expansionX, expansionY, expansionWidth, expansionHeight);
+            }
 
             particles.forEach(particle => {
                 particle.move();
@@ -610,14 +487,14 @@
             const rect = phCanvas.getBoundingClientRect();
             mouseX = event.clientX - rect.left;
             mouseY = event.clientY - rect.top;
-            drawPHDiagram();
+            drawPHDiagram(); // Redibujar para actualizar el tooltip
         });
 
         phCanvas.addEventListener('mouseout', () => {
             mouseX = -100;
             mouseY = -100;
             hoveredPoint = null;
-            drawPHDiagram();
+            drawPHDiagram(); // Redibujar sin tooltip
         });
 
         function getPointsPH() {
@@ -691,8 +568,8 @@
 
             phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            phCtx.fillText('Pressure (bar)', marginX - 32.4, marginY - 10);
-            phCtx.fillText('Enthalpy (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
+            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
+            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
 
             const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
@@ -771,7 +648,7 @@
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 10) {
+                    if (distance < 10) {  // Reducimos el radio para mayor precisión
                         hoveredPoint = point.label;
                     }
                 });
@@ -796,6 +673,7 @@
                     const boxWidth = textWidth + 2 * padding;
                     const boxHeight = lineHeight * textLines.length + 2 * padding;
 
+                    // Ajustar posición si se sale del canvas
                     let adjustedTextX = textX;
                     let adjustedTextY = textY;
                     if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
@@ -809,46 +687,28 @@
                         phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
                     });
                 } else {
-                    hoveredPoint = null;
+                    hoveredPoint = null; // Resetear si no está sobre un punto
                 }
             }
         }
 
-        let lastFrameTime = 0;
-        const frameInterval = 1000 / 30; // 30 FPS
-
-        function animate(timestamp) {
-            if (timestamp - lastFrameTime >= frameInterval) {
-                cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
-                drawCycle();
-                fanAngle += 0.05;
-                lastFrameTime = timestamp;
-            }
+        function animate() {
+            cycleCtx.clearRect(0, 0, cycleCanvas.width, cycleCanvas.height);
+            drawCycle();
+            fanAngle += 0.05;
             requestAnimationFrame(animate);
         }
 
-        function initializeApp() {
-            loadRefrigerants().then(() => {
-                fetchThermoProperties().then(() => {
-                    console.log('Initial data loaded, starting animation...');
-                    drawPHDiagram();
-                    updatePressures();
-                    animate();
-                    document.getElementById('loading').style.display = 'none';
-                }).catch(error => {
-                    console.error('Error initializing:', error);
-                    animate();
-                    document.getElementById('loading').style.display = 'none';
-                });
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            preloadImages(imageUrls, (loadedImages) => {
-                [condenserImg, evaporatorImg, compressorImg, expansionImg] = loadedImages;
-                console.log('Images preloaded, initializing application...');
-                drawStaticElements();
-                initializeApp();
+        console.log('Iniciando aplicación...');
+        loadRefrigerants().then(() => {
+            fetchThermoProperties().then(() => {
+                console.log('Datos iniciales cargados, comenzando animación...');
+                drawPHDiagram();
+                updatePressures();
+                animate();
+            }).catch(error => {
+                console.error('Error al iniciar:', error);
+                animate();
             });
         });
     </script>
