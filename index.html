@@ -121,9 +121,6 @@
         <div class="output-row">
             <label>Caudal Másico (kg/s): </label><span id="massFlow">N/A</span>
         </div>
-        <div class="output-row">
-            <label>Densidad en Punto 4 (kg/m³): </label><span id="densityPoint4">N/A</span>
-        </div>
         <div class="control-row">
             <button onclick="updateThermo()">Calcular</button>
         </div>
@@ -181,7 +178,6 @@
         const altitudeSelect = document.getElementById('altitude');
         const presionBajaSpan = document.getElementById('presionBaja');
         const presionAltaSpan = document.getElementById('presionAlta');
-        const densityPoint4Span = document.getElementById('densityPoint4');
         const capillaryTableBody = document.getElementById('capillaryTableBody');
 
         const x1 = 30, x2 = 450, y1 = 30, y2 = 330, pipeThickness = 18;
@@ -202,10 +198,10 @@
             cop: 0,
             mass_flow: 0,
             points: {
-                '1': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
-                '2': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
-                '3': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 },
-                '4': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 }
+                '1': { pressure: 0, enthalpy: 0, temperature: 0 },
+                '2': { pressure: 0, enthalpy: 0, temperature: 0 },
+                '3': { pressure: 0, enthalpy: 0, temperature: 0 },
+                '4': { pressure: 0, enthalpy: 0, temperature: 0 }
             },
             saturation: { liquid: [], vapor: [] },
             capillary_lengths: []
@@ -258,14 +254,8 @@
                 if (data.status === 'success') {
                     thermoData = data;
                     console.log('Datos recibidos:', thermoData);
-                    console.log('Point 4 data:', thermoData.points['4']); // Debug point 4
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
                     massFlowSpan.textContent = thermoData.mass_flow.toFixed(4);
-                    // Handle density with robust check
-                    const density4 = thermoData.points['4'].density;
-                    densityPoint4Span.textContent = (typeof density4 !== 'undefined' && density4 != null && !isNaN(density4)) 
-                        ? Number(density4).toFixed(2) 
-                        : 'Error: No density data';
                     updatePressures();
                     updateCapillaryTable();
                     drawPHDiagram();
@@ -273,7 +263,6 @@
                     console.error('Error en la respuesta:', data.message);
                     copValueSpan.textContent = 'N/A';
                     massFlowSpan.textContent = 'N/A';
-                    densityPoint4Span.textContent = 'Error: ' + data.message;
                     presionBajaSpan.textContent = 'N/A';
                     presionAltaSpan.textContent = 'N/A';
                     capillaryTableBody.innerHTML = '';
@@ -283,7 +272,6 @@
                 console.error('Error al conectar con el backend:', error);
                 copValueSpan.textContent = 'N/A';
                 massFlowSpan.textContent = 'N/A';
-                densityPoint4Span.textContent = 'Error: Backend no responde';
                 presionBajaSpan.textContent = 'N/A';
                 presionAltaSpan.textContent = 'N/A';
                 capillaryTableBody.innerHTML = '';
@@ -357,7 +345,7 @@
             if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
             else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
             else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mezcla";
-            else if (Math.abs(entropy - hVapor) <= margin) return "Vapor Saturado";
+            else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
             else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
             return "Desconocido";
         }
@@ -542,7 +530,7 @@
             const minP = Math.min(...cyclePressures) * 0.8;
             const maxP = Math.max(...cyclePressures) * 1.2;
             const minH = Math.min(...cycleEnthalpies) * 0.9;
-            const maxH = Math.max(...cyclePoints.map(h => h.enthalpy)) * 1.1;
+            const maxH = Math.max(...cycleEnthalpies) * 1.1;
 
             const marginX = 32.4;
             const marginY = 25.92;
@@ -680,7 +668,7 @@
                     const dx = mouseX - point.x;
                     const dy = mouseY - point.y;
                     const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 10) {
+                    if (distance < 10) {  // Reducimos el radio para mayor precisión
                         hoveredPoint = point.label;
                     }
                 });
@@ -693,15 +681,10 @@
                     const lineHeight = 12;
                     const textX = point.x + 10;
                     const textY = point.y - 20;
-                    const density = pointData.density;
-                    const densityText = (typeof density !== 'undefined' && density != null && !isNaN(density)) 
-                        ? `${Number(density).toFixed(2)} kg/m³` 
-                        : 'No disponible';
                     const textLines = [
                         `P${hoveredPoint} = ${(pointData.pressure / 100000).toFixed(2)} bar`,
                         `T${hoveredPoint} = ${(pointData.temperature - 273.15).toFixed(1)}°C`,
                         `h${hoveredPoint} = ${(pointData.enthalpy / 1000).toFixed(1)} kJ/kg`,
-                        `ρ${hoveredPoint} = ${densityText}`,
                         `${getPhase(pointData, hoveredPoint)}`
                     ];
 
@@ -714,7 +697,7 @@
                     let adjustedTextX = textX;
                     let adjustedTextY = textY;
                     if (adjustedTextX + boxWidth > 324) adjustedTextX = point.x - boxWidth - 10;
-                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight - 20;
+                    if (adjustedTextY - boxHeight < 0) adjustedTextY = point.y + boxHeight + 10;
 
                     phCtx.fillStyle = 'white';
                     phCtx.fillRect(adjustedTextX - padding, adjustedTextY - padding - lineHeight, boxWidth, boxHeight);
@@ -724,7 +707,7 @@
                         phCtx.fillText(line, adjustedTextX, adjustedTextY + index * lineHeight);
                     });
                 } else {
-                    hoveredPoint = null;
+                    hoveredPoint = null; // Resetear si no está sobre un punto
                 }
             }
         }
