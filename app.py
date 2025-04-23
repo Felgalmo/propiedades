@@ -274,6 +274,9 @@ def get_thermo_properties():
             cop = q_evap / w_comp if w_comp != 0 else 0
 
             # Datos de saturación para la campana
+            possible_columns = [col for col in df_refrigerants.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
+            refrigerant_col = possible_columns[0]
+            temp_col = next((col for col in df_refrigerants.columns if 'Temperatura' in col), None)
             df_ref = df_refrigerants[df_refrigerants[refrigerant_col] == refrigerant]
             num_points = 50
             temp_range = (cond_temp_c - evap_temp_c) * 1.5
@@ -319,6 +322,7 @@ def get_thermo_properties():
             p2_pressure = p1_pressure
             if superheat == 0:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)
+                p2_temp = evap_temp
             else:
                 p2_temp = evap_temp + superheat
                 p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
