@@ -119,7 +119,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     }
 
 def get_capillary_constant(refrigerant):
-    default_c = 4  # Adjusted to 4 as requested
+    default_c = 4
     if df_capillary.empty:
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
@@ -164,7 +164,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 rho = CP.PropsSI('D', 'T', p4['temperature'], 'P', p4['pressure'], refrigerant)
         except ValueError as e:
             logger.warning("CoolProp density calculation failed for P4: %s. Using fallback density.", str(e))
-            rho = 1200  # Fallback density for liquid
+            rho = 1200
     logger.debug("Densidad P4: %s kg/m³", rho)
 
     delta_p = p4['pressure'] - p1['pressure']
@@ -179,20 +179,19 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            # Calculate each term for precision
-            d_2_5 = D ** 2.5
-            sqrt_rho_delta_p = math.sqrt(rho * delta_p)
-            denominator = C * d_2_5 * sqrt_rho_delta_p
-            logger.debug("Diámetro: %s m, D^2.5: %s m^2.5, sqrt(rho*delta_p): %s kg/(m^2 s), Denominador: %s kg/s",
-                         D, d_2_5, sqrt_rho_delta_p, denominator)
-            if abs(denominator) < 1e-5:  # Increased threshold for stability
-                logger.warning("Denominador demasiado pequeño para diámetro %s: %s", D, denominator)
+            # New capillary length equation
+            numerator = delta_p * rho * (D ** 4) * C
+            denominator = m_dot
+            if abs(denominator) < 1e-10:
+                logger.warning("Flujo másico demasiado pequeño para diámetro %s: %s", D, denominator)
                 length = float('inf')
             else:
-                length = (m_dot / denominator) ** 2
+                length = numerator / denominator
+            logger.debug("Diámetro: %s m, Numerador: %s, Denominador: %s, Longitud: %s m",
+                         D, numerator, denominator, length)
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
-                'length_m': round(length, 3) if length < 100 else 'N/A'  # More precision, realistic cap
+                'length_m': round(length, 3) if length < 100 else 'N/A'
             })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
@@ -355,7 +354,7 @@ def get_thermo_properties():
                 p1_density = CP.PropsSI('D', 'T', p1_temp, 'P', p1_pressure, refrigerant)
             except ValueError as e:
                 logger.warning("CoolProp density calculation failed for P1: %s. Using fallback density.", str(e))
-                p1_density = 1200  # Fallback density for liquid
+                p1_density = 1200
             logger.debug("P1: pressure=%s Pa, enthalpy=%s J/kg, temp=%s K, density=%s kg/m³", p1_pressure, p1_enthalpy, p1_temp, p1_density)
 
             p2_pressure = p1_pressure
