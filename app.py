@@ -348,7 +348,7 @@ def get_thermo_properties():
                 p4_density = CP.PropsSI('D', 'T', p4_temp, 'P', p4_pressure, refrigerant)
             logger.debug("P4: temp=%s K, enthalpy=%s J/kg, density=%s kg/m³", p4_temp, p4_enthalpy, p4_density)
 
-            p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 사회적 가치, refrigerant)
+            p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
             try:
@@ -359,7 +359,7 @@ def get_thermo_properties():
             logger.debug("P1: pressure=%s Pa, enthalpy=%s J/kg, temp=%s K, density=%s kg/m³", p1_pressure, p1_enthalpy, p1_temp, p1_density)
 
             p2_pressure = p1_pressure
-            if superheat == 0:
+            if-superheat == 0:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)
                 p2_temp = evap_temp
                 p2_density = CP.PropsSI('D', 'T', evap_temp, 'Q', 1, refrigerant)
