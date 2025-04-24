@@ -119,7 +119,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     }
 
 def get_capillary_constant(refrigerant):
-    default_c = 4  # Adjusted to 4 as requested
+    default_c = 5e6  # Ajustado para la nueva fórmula
     if df_capillary.empty:
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
@@ -185,7 +185,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             denominator = C * d_4_5 * sqrt_delta_p
             logger.debug("Diámetro: %s m, D^4.5: %s m^4.5, sqrt(delta_p): %s Pa^0.5, Denominador: %s kg/s",
                          D, d_4_5, sqrt_delta_p, denominator)
-            if abs(denominator) < 1e-5:  # Mantener umbral para estabilidad
+            if abs(denominator) < 1e-12:  # Umbral relajado
                 logger.warning("Denominador demasiado pequeño para diámetro %s: %s", D, denominator)
                 length = float('inf')
             else:
@@ -359,10 +359,10 @@ def get_thermo_properties():
             logger.debug("P1: pressure=%s Pa, enthalpy=%s J/kg, temp=%s K, density=%s kg/m³", p1_pressure, p1_enthalpy, p1_temp, p1_density)
 
             p2_pressure = p1_pressure
-            if-superheat == 0:
+            if superheat == 0:
                 p2_enthalpy = CP.PropsSI('H', 'T', evap_temp, 'Q', 1, refrigerant)
                 p2_temp = evap_temp
-                p2_density = CP.PropsSI('D', 'T', evap_temp, 'Q', 1, refrigerant)
+                p2_density = CP.PropsSI('D', 'T', evap_temp, 'Q', 1, reagent)
             else:
                 p2_temp = evap_temp + superheat
                 p2_enthalpy = CP.PropsSI('H', 'T', p2_temp, 'P', p2_pressure, refrigerant)
