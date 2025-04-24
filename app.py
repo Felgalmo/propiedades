@@ -179,20 +179,20 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            # Calculate each term for precision
-            d_2_5 = D ** 2.5
-            sqrt_rho_delta_p = math.sqrt(rho * delta_p)
-            denominator = C * d_2_5 * sqrt_rho_delta_p
-            logger.debug("Diámetro: %s m, D^2.5: %s m^2.5, sqrt(rho*delta_p): %s kg/(m^2 s), Denominador: %s kg/s",
-                         D, d_2_5, sqrt_rho_delta_p, denominator)
-            if abs(denominator) < 1e-5:  # Increased threshold for stability
+            # Nueva fórmula: L = ((C * D^4.5 * sqrt(delta_p)) / m_dot)^2
+            d_4_5 = D ** 4.5
+            sqrt_delta_p = math.sqrt(delta_p)
+            denominator = C * d_4_5 * sqrt_delta_p
+            logger.debug("Diámetro: %s m, D^4.5: %s m^4.5, sqrt(delta_p): %s Pa^0.5, Denominador: %s kg/s",
+                         D, d_4_5, sqrt_delta_p, denominator)
+            if abs(denominator) < 1e-5:  # Mantener umbral para estabilidad
                 logger.warning("Denominador demasiado pequeño para diámetro %s: %s", D, denominator)
                 length = float('inf')
             else:
-                length = (m_dot / denominator) ** 2
+                length = (denominator / m_dot) ** 2
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
-                'length_m': round(length, 3) if length < 100 else 'N/A'  # More precision, realistic cap
+                'length_m': round(length, 3) if length < 100 else 'N/A'  # Más precisión, límite realista
             })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
@@ -348,7 +348,7 @@ def get_thermo_properties():
                 p4_density = CP.PropsSI('D', 'T', p4_temp, 'P', p4_pressure, refrigerant)
             logger.debug("P4: temp=%s K, enthalpy=%s J/kg, density=%s kg/m³", p4_temp, p4_enthalpy, p4_density)
 
-            p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
+            p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 사회적 가치, refrigerant)
             p1_enthalpy = p4_enthalpy
             p1_temp = evap_temp
             try:
