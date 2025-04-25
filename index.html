@@ -57,25 +57,56 @@
                     <option value="">Loading...</option>
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Evaporator Temp (°C):</label>
+                    <label class="block text-sm font-medium text-gray-700">Evaporator Temp:</label>
                     <input type="number" id="evapTemp" value="-30" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Superheat (°C):</label>
+                    <label class="block text-sm font-medium text-gray-700">Unit:</label>
+                    <select id="evapTempUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="C" selected>°C</option>
+                        <option value="F">°F</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Superheat:</label>
                     <input type="number" id="superheat" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
             </div>
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-3 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Condenser Temp (°C):</label>
+                    <label class="block text-sm font-medium text-gray-700">Superheat Unit:</label>
+                    <select id="superheatUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="C" selected>°C</option>
+                        <option value="F">°F</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Condenser Temp:</label>
                     <input type="number" id="condTemp" value="40" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Subcooling (°C):</label>
+                    <label class="block text-sm font-medium text-gray-700">Unit:</label>
+                    <select id="condTempUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="C" selected>°C</option>
+                        <option value="F">°F</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Subcooling:</label>
                     <input type="number" id="subcooling" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Subcooling Unit:</label>
+                    <select id="subcoolingUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="C" selected>°C</option>
+                        <option value="F">°F</option>
+                    </select>
+                </div>
+                <div></div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -115,11 +146,11 @@
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Low Pressure (bar, psi):</label>
+                    <label class="block text-sm font-medium text-gray-700">Low Gauge Pressure (bar, psi):</label>
                     <span id="presionBaja" class="mt-1 block text-sm text-gray-600">N/A</span>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">High Pressure (bar, psi):</label>
+                    <label class="block text-sm font-medium text-gray-700">High Gauge Pressure (bar, psi):</label>
                     <span id="presionAlta" class="mt-1 block text-sm text-gray-600">N/A</span>
                 </div>
             </div>
@@ -143,6 +174,7 @@
         <canvas id="phCanvas" width="324" height="233"></canvas>
     </div>
     <div class="max-w-2xl mx-auto mt-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-2">Approximate Capillary Tube Sizing Measurements</h2>
         <table id="capillaryTable" class="w-full border-collapse bg-white shadow-sm rounded-lg overflow-hidden">
             <thead>
                 <tr class="bg-gray-100">
@@ -183,6 +215,10 @@
         const condTempInput = document.getElementById('condTemp');
         const superheatInput = document.getElementById('superheat');
         const subcoolingInput = document.getElementById('subcooling');
+        const evapTempUnitSelect = document.getElementById('evapTempUnit');
+        const condTempUnitSelect = document.getElementById('condTempUnit');
+        const superheatUnitSelect = document.getElementById('superheatUnit');
+        const subcoolingUnitSelect = document.getElementById('subcoolingUnit');
         const coolingPowerInput = document.getElementById('coolingPower');
         const coolingUnitSelect = document.getElementById('coolingUnit');
         const copValueSpan = document.getElementById('copValue');
@@ -219,6 +255,10 @@
             saturation: { liquid: [], vapor: [] },
             capillary_lengths: []
         };
+
+        function convertToCelsius(value, unit) {
+            return unit === 'F' ? (value - 32) * 5 / 9 : value;
+        }
 
         async function loadRefrigerants(attempt = 1, maxAttempts = 3) {
             console.log(`Attempting to load refrigerants, attempt ${attempt}/${maxAttempts}`);
@@ -264,21 +304,26 @@
             const coolingPower = parseFloat(coolingPowerInput.value);
             const coolingUnit = coolingUnitSelect.value;
 
-            if (isNaN(evapTemp) || isNaN(condTemp) || isNaN(superheat) || isNaN(subcooling) || isNaN(coolingPower)) {
+            const evapTempC = convertToCelsius(evapTemp, evapTempUnitSelect.value);
+            const condTempC = convertToCelsius(condTemp, condTempUnitSelect.value);
+            const superheatC = convertToCelsius(superheat, superheatUnitSelect.value);
+            const subcoolingC = convertToCelsius(subcooling, subcoolingUnitSelect.value);
+
+            if (isNaN(evapTempC) || isNaN(condTempC) || isNaN(superheatC) || isNaN(subcoolingC) || isNaN(coolingPower)) {
                 throw new Error('Please enter valid numeric values');
             }
-            if (condTemp <= evapTemp) {
+            if (condTempC <= evapTempC) {
                 throw new Error('Condenser temperature must be higher than evaporator temperature');
             }
-            if (superheat < 0 || subcooling < 0) {
+            if (superheatC < 0 || subcoolingC < 0) {
                 throw new Error('Superheat and subcooling cannot be negative');
             }
             if (coolingPower <= 0) {
                 throw new Error('Cooling capacity must be greater than zero');
             }
 
-            const evapTempK = evapTemp + 273.15;
-            const condTempK = condTemp + 273.15;
+            const evapTempK = evapTempC + 273.15;
+            const condTempK = condTempC + 273.15;
 
             try {
                 const response = await fetch('/thermo', {
@@ -288,8 +333,8 @@
                         refrigerant: refrigerantSelect.value,
                         evap_temp: evapTempK,
                         cond_temp: condTempK,
-                        superheat: superheat,
-                        subcooling: subcooling,
+                        superheat: superheatC,
+                        subcooling: subcoolingC,
                         cooling_power: { value: coolingPower, unit: coolingUnit }
                     })
                 });
@@ -744,8 +789,23 @@
                     ].join('\n');
                     const textWidth = Math.max(...text.split('\n').map(line => phCtx.measureText(line).width));
                     const textHeight = 6 * 12.6;
-                    const boxX = point.x + 10;
-                    const boxY = point.y - textHeight - 10;
+                    let boxX = point.x + 10;
+                    let boxY = point.y - textHeight - 10;
+
+                    // Ajustar posición para evitar cortes
+                    if (boxX + textWidth + 10 > 324) {
+                        boxX = point.x - textWidth - 20; // Mostrar a la izquierda
+                    }
+                    if (boxX < 0) {
+                        boxX = 5; // Asegurar margen izquierdo
+                    }
+                    if (boxY < 0) {
+                        boxY = point.y + 10; // Mostrar debajo si está cerca del borde superior
+                    }
+                    if (boxY + textHeight + 10 > 233) {
+                        boxY = 233 - textHeight - 15; // Asegurar que no se salga por abajo
+                    }
+
                     phCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
                     phCtx.fillRect(boxX, boxY, textWidth + 10, textHeight + 10);
                     phCtx.strokeStyle = 'black';
