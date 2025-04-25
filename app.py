@@ -95,7 +95,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     row_upper = df_ref[df_ref[temp_col] == temp_upper].iloc[0]
     
     props = {}
-    for key in ['Presión Burbuja (bar)', 'Presión Rocío (bar)', 'Entalpía Líquido (kJ/kg)', 
+    for key in ['Presión Burbuja (bar)', 'Presión Rocío (bar)', 'Entalpía Lí esperan(kJ/kg)', 
                 'Entalpía Vapor (kJ/kg)', 'Entropía Líquido (kJ/kg·K)', 'Entropía Vapor (kJ/kg·K)', 
                 'Cp Vapor (kJ/kg·K)', 'Densidad Líquido (kg/m³)', 'Densidad Vapor (kg/m³)']:
         try:
@@ -176,10 +176,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant)
     logger.debug("Constante capilar C: %s", C)
 
-    capillary_lengths = []
+    # Calcular longitudes iniciales y encontrar el ganador
+    initial_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            # New capillary length equation
             numerator = delta_p * rho * (D ** 4) * C
             denominator = m_dot
             if abs(denominator) < 1e-10:
@@ -187,20 +187,61 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 length = float('inf')
             else:
                 length = numerator / denominator
-            logger.debug("Diámetro: %s m, Numerador: %s, Denominador: %s, Longitud: %s m",
-                         D, numerator, denominator, length)
-            capillary_lengths.append({
+            initial_lengths.append({
+                'diameter_m': D,
                 'diameter_mm': D * 1000,
-                'length_m': round(length, 3) if length < 100 else 'N/A'
+                'length_m': length if length < 100 else float('inf')
             })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
+            initial_lengths.append({
+                'diameter_m': D,
+                'diameter_mm': D * 1000,
+                'length_m': float('inf')
+            })
+
+    # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
+    valid_lengths = [item for item in initial_lengths if item['length_m'] < 2 and item['length_m'] > 0]
+    if not valid_lengths:
+        logger.error("No se encontraron longitudes válidas menores a 2 metros")
+        raise ValueError("No se encontraron longitudes válidas menores a 2 metros")
+    
+    winner = min(valid_lengths, key=lambda x: abs(2 - x['length_m']))
+    winner_diameter = winner['diameter_m']
+    winner_length = winner['length_m']
+    logger.debug("Ganador: diámetro=%s mm, longitud=%s m", winner['diameter_mm'], winner_length)
+
+    # Calcular nuevas longitudes usando la fórmula NL = OL * (New_ID / Orig_ID)^4.6
+    capillary_lengths = []
+    for D in COMMERCIAL_DIAMETERS:
+        try:
+            if abs(winner_diameter) < 1e-10:
+                logger.warning("Diámetro ganador demasiado pequeño: %s", winner_diameter)
+                new_length = float('inf')
+            else:
+                ratio = D / winner_diameter
+                new_length = winner_length * (ratio ** 4.6)
+            capillary_lengths.append({
+                'diameter_mm': D * 1000,
+                'length_m': round(new_length, 3) if new_length < 100 else 'N/A'
+            })
+        except Exception as e:
+            logger.error("Error calculando nueva longitud para diámetro %s: %s", D, str(e), exc_info=True)
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
                 'length_m': f"Error: {str(e)}"
             })
 
-    return capillary_lengths, m_dot
+    # Preparar la respuesta con el ganador y las nuevas longitudes
+    result = {
+        'winner': {
+            'diameter_mm': winner['diameter_mm'],
+            'length_m': round(winner_length, 3)
+        },
+        'capillary_lengths': capillary_lengths
+    }
+
+    return result, m_dot
 
 @app.route('/refrigerants', methods=['GET'])
 def get_refrigerants():
@@ -416,7 +457,7 @@ def get_thermo_properties():
         p4 = {'pressure': p4_pressure, 'enthalpy': p4_enthalpy, 'temperature': p4_temp, 'density': p4_density}
 
         logger.debug("Calculando longitudes de capilar")
-        capillary_lengths, mass_flow = calculate_capillary_lengths(
+        capillary_result, mass_flow = calculate_capillary_lengths(
             refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy, subcooling
         )
 
@@ -436,7 +477,7 @@ def get_thermo_properties():
                 '4': p4
             },
             'saturation': saturation_data,
-            'capillary_lengths': capillary_lengths
+            'capillary': capillary_result
         }
         logger.debug("Respuesta enviada al frontend: %s", response)
         return jsonify(response)
