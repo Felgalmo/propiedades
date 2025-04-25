@@ -181,26 +181,29 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot
-            # Marcar como N/A si la longitud es menor a 0.3 metros
-            if length < 0.3:
-                length = 'N/A'
-            elif length > 100:
-                length = float('inf')
-            initial_lengths.append({
-                'diameter_m': D,
-                'diameter_mm': D * 1000,
-                'length_m': length
-            })
+            # Solo incluir longitudes entre 0.3 y 4 metros
+            if 0.3 <= length <= 4:
+                initial_lengths.append({
+                    'diameter_m': D,
+                    'diameter_mm': D * 1000,
+                    'length_m': length
+                })
+            else:
+                initial_lengths.append({
+                    'diameter_m': D,
+                    'diameter_mm': D * 1000,
+                    'length_m': 'N/A'
+                })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
             initial_lengths.append({
                 'diameter_m': D,
                 'diameter_mm': D * 1000,
-                'length_m': float('inf')
+                'length_m': 'N/A'
             })
 
     # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
-    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] < 2]
+    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
     if not valid_lengths:
         logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
         raise ValueError("No se encontraron longitudes válidas entre 0.3 y 2 metros")
@@ -216,15 +219,18 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
         try:
             if abs(D) < 1e-10:
                 logger.warning("Diámetro demasiado pequeño: %s", D)
-                new_length = float('inf')
+                capillary_lengths.append({
+                    'diameter_mm': D * 1000,
+                    'length_m': 'N/A'
+                })
+                continue
+            ratio = D / winner_diameter
+            new_length = winner_length * (ratio ** 4.6)
+            # Solo mostrar longitudes entre 0.3 y 4 metros
+            if 0.3 <= new_length <= 4:
+                new_length = round(new_length, 3)
             else:
-                ratio = D / winner_diameter
-                new_length = winner_length * (ratio ** 4.6)
-                # Marcar como N/A si la longitud es menor a 0.3 metros o mayor a 10 metros
-                if new_length < 0.3 or new_length > 10:
-                    new_length = 'N/A'
-                else:
-                    new_length = round(new_length, 3)
+                new_length = 'N/A'
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
                 'length_m': new_length
@@ -233,7 +239,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             logger.error("Error calculando nueva longitud para diámetro %s: %s", D, str(e), exc_info=True)
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
-                'length_m': f"Error: {str(e)}"
+                'length_m': 'N/A'
             })
 
     # Preparar la respuesta con el ganador y las nuevas longitudes
