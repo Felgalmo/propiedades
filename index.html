@@ -1,149 +1,157 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Simulador de Refrigeración con Diagrama P-h Integrado</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Refrigeration Cycle Simulator with Integrated P-h Diagram</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        #mainContainer { 
-            position: relative; 
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f6f9;
+            color: #1f2937;
+        }
+        #mainContainer {
+            position: relative;
             width: 480px;
             height: 360px;
-            margin: 20px auto; 
-            border: 1px solid black; 
-            background-color: #f0f0f0; 
+            margin: 20px auto;
+            border: 1px solid #e5e7eb;
+            background-color: #ffffff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
         }
-        #cycleCanvas { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            z-index: 1; 
+        #cycleCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
         }
-        #phCanvas { 
-            position: absolute; 
-            top: 51px; 
-            left: 78px; 
-            width: 324px; 
-            height: 233px; 
-            border: 1px dashed black; 
-            z-index: 2; 
-        }
-        #controls { 
-            font-family: Arial, sans-serif; 
-            margin: 10px auto; 
-            width: 480px;
-            text-align: left; 
-        }
-        select, input { 
-            margin: 5px 10px 5px 0; 
-            width: 60px;
-        }
-        label { 
-            margin-right: 5px; 
-        }
-        .control-row, .output-row {
-            margin-bottom: 10px;
-        }
-        #capillaryTable {
-            margin-top: 20px;
-            border-collapse: collapse;
-            width: 480px;
-        }
-        #capillaryTable th, #capillaryTable td {
-            border: 1px solid black;
-            padding: 8px;
-            text-align: center;
-        }
-        #capillaryTable th {
-            background-color: #e0e0e0;
+        #phCanvas {
+            position: absolute;
+            top: 51px;
+            left: 78px;
+            width: 324px;
+            height: 233px;
+            border: 1px dashed #6b7280;
+            z-index: 2;
         }
         #errorMessage {
-            color: red;
+            color: #dc2626;
             margin: 10px 0;
+            font-size: 0.875rem;
         }
     </style>
 </head>
 <body>
-    <div id="controls">
-        <div class="control-row">
-            <strong>Condiciones del Ciclo de Refrigeración</strong>
-        </div>
+    <div class="max-w-2xl mx-auto p-6 bg-white rounded-lg shadow-lg mt-8">
+        <h1 class="text-2xl font-bold text-gray-800 mb-6">Refrigeration Cycle Simulator</h1>
         <div id="errorMessage"></div>
-        <div class="control-row">
-            <label>Refrigerante: </label>
-            <select id="refrigerant">
-                <option value="">Cargando...</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label>T. Evap (°C): </label><input type="number" id="evapTemp" value="-30" step="0.1">
-            <label>Superheat (°C): </label><input type="number" id="superheat" value="0" step="0.1">
-        </div>
-        <div class="control-row">
-            <label>T. Cond (°C): </label><input type="number" id="condTemp" value="40" step="0.1">
-            <label>Subcooling (°C): </label><input type="number" id="subcooling" value="0" step="0.1">
-        </div>
-        <div class="control-row">
-            <label>Potencia de Enfriamiento: </label>
-            <input type="number" id="coolingPower" value="1000" step="100">
-            <select id="coolingUnit">
-                <option value="W" selected>W</option>
-                <option value="Btu/h">Btu/h</option>
-                <option value="kcal/h">kcal/h</option>
-            </select>
-        </div>
-        <div class="control-row">
-            <label>Altura sobre el Nivel del Mar: </label>
-            <select id="altitude" onchange="updatePressures()">
-                <option value="0">0 m</option>
-                <option value="252">252 m</option>
-                <option value="500">500 m</option>
-                <option value="750">750 m</option>
-                <option value="1000">1000 m</option>
-                <option value="1250">1250 m</option>
-                <option value="1500">1500 m</option>
-                <option value="1750">1750 m</option>
-                <option value="2000">2000 m</option>
-                <option value="2250">2250 m</option>
-                <option value="2500">2500 m</option>
-                <option value="2750">2750 m</option>
-                <option value="3000">3000 m</option>
-                <option value="3250">3250 m</option>
-                <option value="3500">3500 m</option>
-                <option value="3750">3750 m</option>
-                <option value="4000">4000 m</option>
-            </select>
-        </div>
-        <div class="output-row">
-            <label>Presión de Baja (bar psi): </label><span id="presionBaja">N/A</span>
-        </div>
-        <div class="output-row">
-            <label>Presión de Alta (bar psi): </label><span id="presionAlta">N/A</span>
-        </div>
-        <div class="output-row">
-            <label>COP: </label><span id="copValue">N/A</span>
-        </div>
-        <div class="output-row">
-            <label>Caudal Másico (kg/s): </label><span id="massFlow">N/A</span>
-        </div>
-        <div class="control-row">
-            <button onclick="updateThermo()">Calcular</button>
+        <div class="grid grid-cols-1 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Refrigerant:</label>
+                <select id="refrigerant" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="">Loading...</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Evaporator Temp (°C):</label>
+                    <input type="number" id="evapTemp" value="-30" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Superheat (°C):</label>
+                    <input type="number" id="superheat" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Condenser Temp (°C):</label>
+                    <input type="number" id="condTemp" value="40" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Subcooling (°C):</label>
+                    <input type="number" id="subcooling" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Cooling Capacity:</label>
+                    <input type="number" id="coolingPower" value="1000" step="100" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Unit:</label>
+                    <select id="coolingUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="W" selected>W</option>
+                        <option value="Btu/h">Btu/h</option>
+                        <option value="kcal/h">kcal/h</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Altitude (m):</label>
+                <select id="altitude" onchange="updatePressures()" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="0">0 m</option>
+                    <option value="252">252 m</option>
+                    <option value="500">500 m</option>
+                    <option value="750">750 m</option>
+                    <option value="1000">1000 m</option>
+                    <option value="1250">1250 m</option>
+                    <option value="1500">1500 m</option>
+                    <option value="1750">1750 m</option>
+                    <option value="2000">2000 m</option>
+                    <option value="2250">2250 m</option>
+                    <option value="2500">2500 m</option>
+                    <option value="2750">2750 m</option>
+                    <option value="3000">3000 m</option>
+                    <option value="3250">3250 m</option>
+                    <option value="3500">3500 m</option>
+                    <option value="3750">3750 m</option>
+                    <option value="4000">4000 m</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Low Pressure (bar, psi):</label>
+                    <span id="presionBaja" class="mt-1 block text-sm text-gray-600">N/A</span>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">High Pressure (bar, psi):</label>
+                    <span id="presionAlta" class="mt-1 block text-sm text-gray-600">N/A</span>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">COP:</label>
+                    <span id="copValue" class="mt-1 block text-sm text-gray-600">N/A</span>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Mass Flow Rate (kg/s):</label>
+                    <span id="massFlow" class="mt-1 block text-sm text-gray-600">N/A</span>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button onclick="updateThermo()" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">Calculate</button>
+            </div>
         </div>
     </div>
     <div id="mainContainer">
         <canvas id="cycleCanvas" width="480" height="360"></canvas>
         <canvas id="phCanvas" width="324" height="233"></canvas>
     </div>
-    <div>
-        <table id="capillaryTable">
+    <div class="max-w-2xl mx-auto mt-6">
+        <table id="capillaryTable" class="w-full border-collapse bg-white shadow-sm rounded-lg overflow-hidden">
             <thead>
-                <tr>
-                    <th>Diámetro (pulgadas)</th>
-                    <th>Longitud (m)</th>
+                <tr class="bg-gray-100">
+                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700">Diameter (inches)</th>
+                    <th class="py-3 px-4 text-left text-sm font-medium text-gray-700">Length (m)</th>
                 </tr>
             </thead>
-            <tbody id="capillaryTableBody">
-                <!-- Se llenará dinámicamente -->
+            <tbody id="capillaryTableBody" class="text-sm text-gray-600">
+                <!-- Will be populated dynamically -->
             </tbody>
         </table>
     </div>
@@ -213,13 +221,13 @@
         };
 
         async function loadRefrigerants(attempt = 1, maxAttempts = 3) {
-            console.log(`Intentando cargar refrigerantes, intento ${attempt}/${maxAttempts}`);
+            console.log(`Attempting to load refrigerants, attempt ${attempt}/${maxAttempts}`);
             errorMessageDiv.textContent = '';
             try {
                 const response = await fetch('/refrigerants', { method: 'GET', headers: { 'Accept': 'application/json' } });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-                console.log('Respuesta de /refrigerants:', data);
+                console.log('Response from /refrigerants:', data);
                 if (data.status === 'success' && Array.isArray(data.refrigerants)) {
                     refrigerantSelect.innerHTML = '';
                     data.refrigerants.forEach(refrigerant => {
@@ -229,25 +237,25 @@
                         if (refrigerant === 'R134a') option.selected = true;
                         refrigerantSelect.appendChild(option);
                     });
-                    console.log('Refrigerantes cargados correctamente');
+                    console.log('Refrigerants loaded successfully');
                     updateThermo();
                 } else {
-                    throw new Error(data.message || 'Respuesta inválida del servidor');
+                    throw new Error(data.message || 'Invalid server response');
                 }
             } catch (error) {
-                console.error('Error al cargar refrigerantes:', error);
+                console.error('Error loading refrigerants:', error);
                 if (attempt < maxAttempts) {
-                    console.log(`Reintentando carga de refrigerantes en 1 segundo...`);
+                    console.log(`Retrying refrigerant load in 1 second...`);
                     setTimeout(() => loadRefrigerants(attempt + 1, maxAttempts), 1000);
                 } else {
-                    errorMessageDiv.textContent = 'Error al cargar refrigerantes: ' + error.message;
-                    refrigerantSelect.innerHTML = '<option value="">Error al cargar</option>';
+                    errorMessageDiv.textContent = 'Error loading refrigerants: ' + error.message;
+                    refrigerantSelect.innerHTML = '<option value="">Error loading</option>';
                 }
             }
         }
 
         async function fetchThermoProperties() {
-            console.log('Obteniendo datos del backend...');
+            console.log('Fetching data from backend...');
             errorMessageDiv.textContent = '';
             const evapTemp = parseFloat(evapTempInput.value);
             const condTemp = parseFloat(condTempInput.value);
@@ -257,16 +265,16 @@
             const coolingUnit = coolingUnitSelect.value;
 
             if (isNaN(evapTemp) || isNaN(condTemp) || isNaN(superheat) || isNaN(subcooling) || isNaN(coolingPower)) {
-                throw new Error('Por favor, ingrese valores numéricos válidos');
+                throw new Error('Please enter valid numeric values');
             }
             if (condTemp <= evapTemp) {
-                throw new Error('La temperatura de condensación debe ser mayor que la de evaporación');
+                throw new Error('Condenser temperature must be higher than evaporator temperature');
             }
             if (superheat < 0 || subcooling < 0) {
-                throw new Error('El sobrecalentamiento y subenfriamiento no pueden ser negativos');
+                throw new Error('Superheat and subcooling cannot be negative');
             }
             if (coolingPower <= 0) {
-                throw new Error('La potencia de enfriamiento debe ser mayor que cero');
+                throw new Error('Cooling capacity must be greater than zero');
             }
 
             const evapTempK = evapTemp + 273.15;
@@ -287,7 +295,7 @@
                 });
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 const data = await response.json();
-                console.log('Respuesta de /thermo:', data);
+                console.log('Response from /thermo:', data);
                 if (data.status === 'success') {
                     thermoData = data;
                     copValueSpan.textContent = thermoData.cop.toFixed(2);
@@ -296,11 +304,11 @@
                     updateCapillaryTable();
                     drawPHDiagram();
                 } else {
-                    throw new Error(data.message || 'Error en los cálculos');
+                    throw new Error(data.message || 'Calculation error');
                 }
             } catch (error) {
-                console.error('Error al conectar con el backend:', error);
-                errorMessageDiv.textContent = 'Error al calcular: ' + error.message;
+                console.error('Error connecting to backend:', error);
+                errorMessageDiv.textContent = 'Error calculating: ' + error.message;
                 copValueSpan.textContent = 'N/A';
                 massFlowSpan.textContent = 'N/A';
                 presionBajaSpan.textContent = 'N/A';
@@ -312,26 +320,28 @@
 
         function updateCapillaryTable() {
             capillaryTableBody.innerHTML = '';
-            // Verificar si thermoData.capillary y capillary_lengths existen y son un arreglo
             if (thermoData.capillary && Array.isArray(thermoData.capillary.capillary_lengths)) {
                 thermoData.capillary.capillary_lengths.forEach(item => {
                     const row = document.createElement('tr');
+                    row.className = 'border-b border-gray-200 hover:bg-gray-50';
                     const diameterCell = document.createElement('td');
+                    diameterCell.className = 'py-2 px-4';
                     const diameterMeters = item.diameter_mm / 1000;
                     const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254).toFixed(3);
                     diameterCell.textContent = diameterInches.toFixed(3);
                     const lengthCell = document.createElement('td');
+                    lengthCell.className = 'py-2 px-4';
                     lengthCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
                     row.appendChild(diameterCell);
                     row.appendChild(lengthCell);
                     capillaryTableBody.appendChild(row);
                 });
             } else {
-                // Mostrar mensaje en la tabla si no hay datos de capilares
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
                 cell.colSpan = 2;
-                cell.textContent = 'No hay datos de capilares disponibles';
+                cell.className = 'py-2 px-4 text-center';
+                cell.textContent = 'No capillary data available';
                 row.appendChild(cell);
                 capillaryTableBody.appendChild(row);
             }
@@ -353,24 +363,24 @@
             const presionBajaPsi = (presionBaja * 14.5038).toFixed(2);
             const presionAltaPsi = (presionAlta * 14.5038).toFixed(2);
 
-            presionBajaSpan.textContent = `${presionBaja.toFixed(2)} bar ${presionBajaPsi} psi`;
-            presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar ${presionAltaPsi} psi`;
+            presionBajaSpan.textContent = `${presionBaja.toFixed(2)} bar, ${presionBajaPsi} psi`;
+            presionAltaSpan.textContent = `${presionAlta.toFixed(2)} bar, ${presionAltaPsi} psi`;
         }
 
         async function updateThermo() {
             if (!refrigerantSelect.value) {
-                errorMessageDiv.textContent = 'Por favor, seleccione un refrigerante';
+                errorMessageDiv.textContent = 'Please select a refrigerant';
                 return;
             }
             try {
                 await fetchThermoProperties();
-                console.log('Datos actualizados, redibujando...');
+                console.log('Data updated, redrawing...');
                 drawCycle();
                 drawPHDiagram();
                 updatePressures();
             } catch (error) {
-                console.error('Error al actualizar:', error);
-                errorMessageDiv.textContent = 'Error al actualizar: ' + error.message;
+                console.error('Error updating:', error);
+                errorMessageDiv.textContent = 'Error updating: ' + error.message;
             }
         }
 
@@ -381,21 +391,21 @@
             const saturationLiquid = thermoData.saturation.liquid.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.liquid[0];
             const saturationVapor = thermoData.saturation.vapor.find(p => Math.abs(p.pressure - pressure) < 10000) || thermoData.saturation.vapor[0];
 
-            if (!saturationLiquid || !saturationVapor) return "Desconocido";
+            if (!saturationLiquid || !saturationVapor) return "Unknown";
 
             const hLiquid = saturationLiquid.enthalpy;
             const hVapor = saturationVapor.enthalpy;
             const margin = 2000;
 
-            if (pointId === '2' && thermoData.superheat > 0) return "Vapor Sobrecalentado";
-            if (pointId === '4' && thermoData.subcooling > 0) return "Líquido Subenfriado";
+            if (pointId === '2' && thermoData.superheat > 0) return "Superheated Vapor";
+            if (pointId === '4' && thermoData.subcooling > 0) return "Subcooled Liquid";
 
-            if (enthalpy < hLiquid - margin) return "Líquido Subenfriado";
-            else if (Math.abs(enthalpy - hLiquid) <= margin) return "Líquido Saturado";
-            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Mezcla";
-            else if (Math.abs(enthalpy - hVapor) <= margin) return "Vapor Saturado";
-            else if (enthalpy > hVapor + margin) return "Vapor Sobrecalentado";
-            return "Desconocido";
+            if (enthalpy < hLiquid - margin) return "Subcooled Liquid";
+            else if (Math.abs(enthalpy - hLiquid) <= margin) return "Saturated Liquid";
+            else if (enthalpy > hLiquid + margin && enthalpy < hVapor - margin) return "Liquid-Vapor Mixture";
+            else if (Math.abs(enthalpy - hVapor) <= margin) return "Saturated Vapor";
+            else if (enthalpy > hVapor + margin) return "Superheated Vapor";
+            return "Unknown";
         }
 
         class Particle {
@@ -636,8 +646,8 @@
 
             phCtx.font = '14.4px Arial';
             phCtx.fillStyle = 'black';
-            phCtx.fillText('Presión (bar)', marginX - 32.4, marginY - 10);
-            phCtx.fillText('Entalpía (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
+            phCtx.fillText('Pressure (bar)', marginX - 32.4, marginY - 10);
+            phCtx.fillText('Enthalpy (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
 
             const logMinP = Math.log(minP);
             const logMaxP = Math.log(maxP);
@@ -725,12 +735,12 @@
                     const point = pointsPH.find(p => p.label === hoveredPoint);
                     const thermoPoint = thermoData.points[hoveredPoint];
                     const text = [
-                        `P${hoveredPoint}`,
-                        `P: ${(thermoPoint.pressure / 100000).toFixed(2)} bar`,
-                        `T: ${(thermoPoint.temperature - 273.15).toFixed(1)}°C`,
-                        `h: ${(thermoPoint.enthalpy / 1000).toFixed(1)} kJ/kg`,
-                        `ρ: ${thermoPoint.density.toFixed(1)} kg/m³`,
-                        `Fase: ${getPhase(thermoPoint, hoveredPoint)}`
+                        `Point ${hoveredPoint}`,
+                        `Pressure: ${(thermoPoint.pressure / 100000).toFixed(2)} bar`,
+                        `Temperature: ${(thermoPoint.temperature - 273.15).toFixed(1)}°C`,
+                        `Enthalpy: ${(thermoPoint.enthalpy / 1000).toFixed(1)} kJ/kg`,
+                        `Density: ${thermoPoint.density.toFixed(1)} kg/m³`,
+                        `Phase: ${getPhase(thermoPoint, hoveredPoint)}`
                     ].join('\n');
                     const textWidth = Math.max(...text.split('\n').map(line => phCtx.measureText(line).width));
                     const textHeight = 6 * 12.6;
