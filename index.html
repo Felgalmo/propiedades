@@ -51,62 +51,40 @@
         <h1 class="text-2xl font-bold text-gray-800 mb-6">Refrigeration Cycle Simulator</h1>
         <div id="errorMessage"></div>
         <div class="grid grid-cols-1 gap-4">
-            <div>
-                <label class="block text-sm font-medium text-gray-700">Refrigerant:</label>
-                <select id="refrigerant" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                    <option value="">Loading...</option>
-                </select>
-            </div>
-            <div class="grid grid-cols-3 gap-4">
+            <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Evaporator Temp:</label>
-                    <input type="number" id="evapTemp" value="-30" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <label class="block text-sm font-medium text-gray-700">Refrigerant:</label>
+                    <select id="refrigerant" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="">Loading...</option>
+                    </select>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Unit:</label>
-                    <select id="evapTempUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <label class="block text-sm font-medium text-gray-700">Temperature Unit:</label>
+                    <select id="tempUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                         <option value="C" selected>°C</option>
                         <option value="F">°F</option>
                     </select>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Evaporator Temp:</label>
+                    <input type="number" id="evapTemp" value="-30" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Superheat:</label>
                     <input type="number" id="superheat" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
             </div>
-            <div class="grid grid-cols-3 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Superheat Unit:</label>
-                    <select id="superheatUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        <option value="C" selected>°C</option>
-                        <option value="F">°F</option>
-                    </select>
-                </div>
+            <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700">Condenser Temp:</label>
                     <input type="number" id="condTemp" value="40" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Unit:</label>
-                    <select id="condTempUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        <option value="C" selected>°C</option>
-                        <option value="F">°F</option>
-                    </select>
-                </div>
-            </div>
-            <div class="grid grid-cols-3 gap-4">
-                <div>
                     <label class="block text-sm font-medium text-gray-700">Subcooling:</label>
                     <input type="number" id="subcooling" value="0" step="0.1" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Subcooling Unit:</label>
-                    <select id="subcoolingUnit" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                        <option value="C" selected>°C</option>
-                        <option value="F">°F</option>
-                    </select>
-                </div>
-                <div></div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -211,14 +189,11 @@
         const phCanvas = document.getElementById('phCanvas');
         const phCtx = phCanvas.getContext('2d');
         const refrigerantSelect = document.getElementById('refrigerant');
+        const tempUnitSelect = document.getElementById('tempUnit');
         const evapTempInput = document.getElementById('evapTemp');
         const condTempInput = document.getElementById('condTemp');
         const superheatInput = document.getElementById('superheat');
         const subcoolingInput = document.getElementById('subcooling');
-        const evapTempUnitSelect = document.getElementById('evapTempUnit');
-        const condTempUnitSelect = document.getElementById('condTempUnit');
-        const superheatUnitSelect = document.getElementById('superheatUnit');
-        const subcoolingUnitSelect = document.getElementById('subcoolingUnit');
         const coolingPowerInput = document.getElementById('coolingPower');
         const coolingUnitSelect = document.getElementById('coolingUnit');
         const copValueSpan = document.getElementById('copValue');
@@ -303,11 +278,12 @@
             const subcooling = parseFloat(subcoolingInput.value);
             const coolingPower = parseFloat(coolingPowerInput.value);
             const coolingUnit = coolingUnitSelect.value;
+            const tempUnit = tempUnitSelect.value;
 
-            const evapTempC = convertToCelsius(evapTemp, evapTempUnitSelect.value);
-            const condTempC = convertToCelsius(condTemp, condTempUnitSelect.value);
-            const superheatC = convertToCelsius(superheat, superheatUnitSelect.value);
-            const subcoolingC = convertToCelsius(subcooling, subcoolingUnitSelect.value);
+            const evapTempC = convertToCelsius(evapTemp, tempUnit);
+            const condTempC = convertToCelsius(condTemp, tempUnit);
+            const superheatC = convertToCelsius(superheat, tempUnit);
+            const subcoolingC = convertToCelsius(subcooling, tempUnit);
 
             if (isNaN(evapTempC) || isNaN(condTempC) || isNaN(superheatC) || isNaN(subcoolingC) || isNaN(coolingPower)) {
                 throw new Error('Please enter valid numeric values');
