@@ -181,10 +181,15 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot
+            # Marcar como N/A si la longitud es menor a 0.3 metros
+            if length < 0.3:
+                length = 'N/A'
+            elif length > 100:
+                length = float('inf')
             initial_lengths.append({
                 'diameter_m': D,
                 'diameter_mm': D * 1000,
-                'length_m': length if length < 100 else float('inf')
+                'length_m': length
             })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
@@ -195,10 +200,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             })
 
     # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
-    valid_lengths = [item for item in initial_lengths if 0 < item['length_m'] < 2]
+    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] < 2]
     if not valid_lengths:
-        logger.error("No se encontraron longitudes válidas menores a 2 metros")
-        raise ValueError("No se encontraron longitudes válidas menores a 2 metros")
+        logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
+        raise ValueError("No se encontraron longitudes válidas entre 0.3 y 2 metros")
     
     winner = min(valid_lengths, key=lambda x: abs(2 - x['length_m']))
     winner_diameter = winner['diameter_m']
@@ -215,8 +220,8 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             else:
                 ratio = D / winner_diameter
                 new_length = winner_length * (ratio ** 4.6)
-                # Validar longitudes físicamente realistas
-                if new_length < 0.1 or new_length > 10:
+                # Marcar como N/A si la longitud es menor a 0.3 metros o mayor a 10 metros
+                if new_length < 0.3 or new_length > 10:
                     new_length = 'N/A'
                 else:
                     new_length = round(new_length, 3)
@@ -235,7 +240,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     result = {
         'winner': {
             'diameter_mm': winner['diameter_mm'],
-            'length_m': round(winner_length, 3)
+            'length_m': round(winner_length, 3) if isinstance(winner_length, (int, float)) else winner_length
         },
         'capillary_lengths': capillary_lengths
     }
