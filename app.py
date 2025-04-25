@@ -95,7 +95,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     row_upper = df_ref[df_ref[temp_col] == temp_upper].iloc[0]
     
     props = {}
-    for key in ['Presión Burbuja (bar)', 'Presión Rocío (bar)', 'Entalpía Lí esperan(kJ/kg)', 
+    for key in ['Presión Burbuja (bar)', 'Presión Rocío (bar)', 'Entalpía Líquido (kJ/kg)', 
                 'Entalpía Vapor (kJ/kg)', 'Entropía Líquido (kJ/kg·K)', 'Entropía Vapor (kJ/kg·K)', 
                 'Cp Vapor (kJ/kg·K)', 'Densidad Líquido (kg/m³)', 'Densidad Vapor (kg/m³)']:
         try:
@@ -176,17 +176,11 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant)
     logger.debug("Constante capilar C: %s", C)
 
-    # Calcular longitudes iniciales y encontrar el ganador
+    # Calcular longitudes iniciales usando la ecuación proporcionada
     initial_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            numerator = delta_p * rho * (D ** 4) * C
-            denominator = m_dot
-            if abs(denominator) < 1e-10:
-                logger.warning("Flujo másico demasiado pequeño para diámetro %s: %s", D, denominator)
-                length = float('inf')
-            else:
-                length = numerator / denominator
+            length = (delta_p * rho * (D ** 4) * C) / m_dot
             initial_lengths.append({
                 'diameter_m': D,
                 'diameter_mm': D * 1000,
@@ -201,7 +195,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             })
 
     # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
-    valid_lengths = [item for item in initial_lengths if item['length_m'] < 2 and item['length_m'] > 0]
+    valid_lengths = [item for item in initial_lengths if 0 < item['length_m'] < 2]
     if not valid_lengths:
         logger.error("No se encontraron longitudes válidas menores a 2 metros")
         raise ValueError("No se encontraron longitudes válidas menores a 2 metros")
@@ -215,15 +209,20 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            if abs(winner_diameter) < 1e-10:
-                logger.warning("Diámetro ganador demasiado pequeño: %s", winner_diameter)
+            if abs(D) < 1e-10:
+                logger.warning("Diámetro demasiado pequeño: %s", D)
                 new_length = float('inf')
             else:
                 ratio = D / winner_diameter
                 new_length = winner_length * (ratio ** 4.6)
+                # Validar longitudes físicamente realistas
+                if new_length < 0.1 or new_length > 10:
+                    new_length = 'N/A'
+                else:
+                    new_length = round(new_length, 3)
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
-                'length_m': round(new_length, 3) if new_length < 100 else 'N/A'
+                'length_m': new_length
             })
         except Exception as e:
             logger.error("Error calculando nueva longitud para diámetro %s: %s", D, str(e), exc_info=True)
