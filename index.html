@@ -312,18 +312,29 @@
 
         function updateCapillaryTable() {
             capillaryTableBody.innerHTML = '';
-            thermoData.capillary_lengths.forEach(item => {
+            // Verificar si thermoData.capillary y capillary_lengths existen y son un arreglo
+            if (thermoData.capillary && Array.isArray(thermoData.capillary.capillary_lengths)) {
+                thermoData.capillary.capillary_lengths.forEach(item => {
+                    const row = document.createElement('tr');
+                    const diameterCell = document.createElement('td');
+                    const diameterMeters = item.diameter_mm / 1000;
+                    const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254).toFixed(3);
+                    diameterCell.textContent = diameterInches.toFixed(3);
+                    const lengthCell = document.createElement('td');
+                    lengthCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
+                    row.appendChild(diameterCell);
+                    row.appendChild(lengthCell);
+                    capillaryTableBody.appendChild(row);
+                });
+            } else {
+                // Mostrar mensaje en la tabla si no hay datos de capilares
                 const row = document.createElement('tr');
-                const diameterCell = document.createElement('td');
-                const diameterMeters = item.diameter_mm / 1000;
-                const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254).toFixed(3);
-                diameterCell.textContent = diameterInches.toFixed(3);
-                const lengthCell = document.createElement('td');
-                lengthCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
-                row.appendChild(diameterCell);
-                row.appendChild(lengthCell);
+                const cell = document.createElement('td');
+                cell.colSpan = 2;
+                cell.textContent = 'No hay datos de capilares disponibles';
+                row.appendChild(cell);
                 capillaryTableBody.appendChild(row);
-            });
+            }
         }
 
         function getPresionAtmosferica(altura) {
