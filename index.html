@@ -235,6 +235,41 @@
             return unit === 'F' ? (value - 32) * 5 / 9 : value;
         }
 
+        function getDewPointTemperature(pressure) {
+            const vaporSaturation = thermoData.saturation.vapor;
+            if (!vaporSaturation || vaporSaturation.length < 2) {
+                return null; // Retorna null si no hay datos suficientes
+            }
+
+            // Encontrar los puntos de saturación más cercanos a la presión dada
+            let lowerPoint = null;
+            let upperPoint = null;
+            for (let i = 0; i < vaporSaturation.length; i++) {
+                if (vaporSaturation[i].pressure <= pressure && (!lowerPoint || vaporSaturation[i].pressure > lowerPoint.pressure)) {
+                    lowerPoint = vaporSaturation[i];
+                }
+                if (vaporSaturation[i].pressure >= pressure && (!upperPoint || vaporSaturation[i].pressure < upperPoint.pressure)) {
+                    upperPoint = vaporSaturation[i];
+                }
+            }
+
+            if (!lowerPoint || !upperPoint) {
+                return null; // Retorna null si no se encuentran puntos adecuados
+            }
+
+            if (lowerPoint.pressure === upperPoint.pressure) {
+                return lowerPoint.temperature;
+            }
+
+            // Interpolación lineal
+            const p1 = lowerPoint.pressure;
+            const p2 = upperPoint.pressure;
+            const t1 = lowerPoint.temperature;
+            const t2 = upperPoint.temperature;
+            const tDew = t1 + (pressure - p1) * (t2 - t1) / (p2 - p1);
+            return tDew;
+        }
+
         async function loadRefrigerants(attempt = 1, maxAttempts = 3) {
             console.log(`Attempting to load refrigerants, attempt ${attempt}/${maxAttempts}`);
             errorMessageDiv.textContent = '';
@@ -755,10 +790,17 @@
                 if (hoveredPoint) {
                     const point = pointsPH.find(p => p.label === hoveredPoint);
                     const thermoPoint = thermoData.points[hoveredPoint];
+                    let displayTemp;
+                    if (hoveredPoint === '2') {
+                        const dewTempK = getDewPointTemperature(thermoPoint.pressure);
+                        displayTemp = dewTempK !== null ? (dewTempK - 273.15).toFixed(1) : 'N/A';
+                    } else {
+                        displayTemp = (thermoPoint.temperature - 273.15).toFixed(1);
+                    }
                     const text = [
                         `Point ${hoveredPoint}`,
                         `Pressure: ${(thermoPoint.pressure / 100000).toFixed(2)} bar`,
-                        `Temperature: ${(thermoPoint.temperature - 273.15).toFixed(1)}°C`,
+                        `Temperature: ${displayTemp}°C`,
                         `Enthalpy: ${(thermoPoint.enthalpy / 1000).toFixed(1)} kJ/kg`,
                         `Density: ${thermoPoint.density.toFixed(1)} kg/m³`,
                         `Phase: ${getPhase(thermoPoint, hoveredPoint)}`
