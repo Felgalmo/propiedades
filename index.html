@@ -800,7 +800,7 @@
                     let displayTemp;
                     if (hoveredPoint === '2') {
                         const dewTempK = getDewPointTemperature();
-                        displayTemp = dewTempK !== null ? (dewTempK - 273.15).toFixed(1) : 'N/A';
+                        displayTemp = dewTempK !== null && !isNaN(dewTempK) ? (dewTempK - 273.15).toFixed(1) : 'N/A';
                     } else {
                         displayTemp = (thermoPoint.temperature - 273.15).toFixed(1);
                     }
