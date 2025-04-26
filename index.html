@@ -235,13 +235,20 @@
             return unit === 'F' ? (value - 32) * 5 / 9 : value;
         }
 
-        function getDewPointTemperature(pressure) {
+        function getDewPointTemperature() {
+            const pressure = thermoData.points['1'].pressure; // Usar P1 como presión de rocío
             const vaporSaturation = thermoData.saturation.vapor;
-            if (!vaporSaturation || vaporSaturation.length < 2) {
-                return null; // Retorna null si no hay datos suficientes
+            if (!vaporSaturation || vaporSaturation.length === 0) {
+                return null; // Retorna null si no hay datos
             }
 
-            // Encontrar los puntos de saturación más cercanos a la presión dada
+            // Buscar coincidencia exacta
+            const exactMatch = vaporSaturation.find(point => Math.abs(point.pressure - pressure) < 100); // Tolerancia de 100 Pa
+            if (exactMatch) {
+                return exactMatch.temperature;
+            }
+
+            // Encontrar los puntos de saturación más cercanos
             let lowerPoint = null;
             let upperPoint = null;
             for (let i = 0; i < vaporSaturation.length; i++) {
@@ -792,7 +799,7 @@
                     const thermoPoint = thermoData.points[hoveredPoint];
                     let displayTemp;
                     if (hoveredPoint === '2') {
-                        const dewTempK = getDewPointTemperature(thermoPoint.pressure);
+                        const dewTempK = getDewPointTemperature();
                         displayTemp = dewTempK !== null ? (dewTempK - 273.15).toFixed(1) : 'N/A';
                     } else {
                         displayTemp = (thermoPoint.temperature - 273.15).toFixed(1);
