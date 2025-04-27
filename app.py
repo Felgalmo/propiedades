@@ -25,6 +25,7 @@ except Exception as e:
 try:
     df_capillary = pd.read_csv('capillary_constants.csv', encoding='utf-8-sig')
     logger.info("Columnas en capillary_constants.csv: %s", df_capillary.columns.tolist())
+    logger.debug("Refrigerantes en capillary_constants.csv: %s", df_capillary['Refrigerant'].tolist())
 except FileNotFoundError:
     df_capillary = pd.DataFrame(columns=['Refrigerant', 'Cooling_Power', 'C'])
     logger.error("capillary_constants.csv no encontrado")
@@ -146,13 +147,18 @@ def get_capillary_constant(refrigerant, cooling_power_watts):
     else:
         c_column = 'c60000'
     
-    row = df_capillary[df_capillary[refrigerant_col] == refrigerant]
+    logger.debug("Seleccionada columna %s para %s W", c_column, cooling_power_watts)
+    
+    row = df_capillary[df_capillary[refrigerant_col].str.strip() == refrigerant.strip()]
     if row.empty:
-        logger.warning("No se encontró constante para %s, usando valor por defecto: %s", refrigerant, default_c)
+        logger.warning("No se encontró constante para '%s' en columna %s, usando valor por defecto: %s", refrigerant, c_column, default_c)
+        logger.debug("Refrigerantes disponibles: %s", df_capillary[refrigerant_col].str.strip().tolist())
         return default_c
     
     try:
-        return float(row[c_column].iloc[0])
+        value = float(row[c_column].iloc[0])
+        logger.debug("Valor de C encontrado: %s para %s en %s", value, refrigerant, c_column)
+        return value
     except (ValueError, TypeError, KeyError) as e:
         logger.error("Error al leer constante %s para %s: %s", c_column, refrigerant, str(e))
         return default_c
@@ -195,12 +201,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant, cooling_power_watts)
     logger.debug("Constante capilar C: %s", C)
 
-    # Calcular longitudes iniciales usando la ecuación proporcionada
     initial_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot
-            # Solo incluir longitudes entre 0.3 y 4 metros
             if 0.3 <= length <= 4:
                 initial_lengths.append({
                     'diameter_m': D,
@@ -221,7 +225,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': 'N/A'
             })
 
-    # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
     valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
     if not valid_lengths:
         logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
@@ -232,7 +235,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     winner_length = winner['length_m']
     logger.debug("Ganador: diámetro=%s mm, longitud=%s m", winner['diameter_mm'], winner_length)
 
-    # Calcular nuevas longitudes usando la fórmula NL = OL * (New_ID / Orig_ID)^4.6
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
@@ -245,7 +247,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 continue
             ratio = D / winner_diameter
             new_length = winner_length * (ratio ** 4.6)
-            # Solo mostrar longitudes entre 0.3 y 4 metros
             if 0.3 <= new_length <= 4:
                 new_length = round(new_length, 3)
             else:
@@ -261,7 +262,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': 'N/A'
             })
 
-    # Preparar la respuesta con el ganador y las nuevas longitudes
     result = {
         'winner': {
             'diameter_mm': winner['diameter_mm'],
@@ -419,7 +419,7 @@ def get_thermo_properties():
 
             p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
             p1_enthalpy = p4_enthalpy
-            p1_temp = evap lastly_temp
+            p1_temp = evap_temp
             try:
                 p1_density = CP.PropsSI('D', 'T', p1_temp, 'P', p1_pressure, refrigerant)
             except ValueError as e:
