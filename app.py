@@ -130,7 +130,6 @@ def get_capillary_constant(refrigerant, cooling_power_watts):
         return default_c
     refrigerant_col = possible_columns[0]
     
-    # Definir los rangos de potencia y sus correspondientes valores de C
     cooling_power_ranges = [
         (500, 'c500'), (750, 'c750'), (1000, 'c1000'), (1500, 'c1500'),
         (2000, 'c2000'), (3000, 'c3000'), (5000, 'c5000'), (8000, 'c8000'),
@@ -139,7 +138,6 @@ def get_capillary_constant(refrigerant, cooling_power_watts):
         (48000, 'c48000'), (60000, 'c60000')
     ]
     
-    # Encontrar el valor de C basado en la potencia de enfriamiento
     c_column = 'C'
     for threshold, c_key in cooling_power_ranges:
         if cooling_power_watts <= threshold:
@@ -421,7 +419,7 @@ def get_thermo_properties():
 
             p1_pressure = CP.PropsSI('P', 'T', evap_temp, 'Q', 0, refrigerant)
             p1_enthalpy = p4_enthalpy
-            p1_temp = evap_temp
+            p1_temp = evap lastly_temp
             try:
                 p1_density = CP.PropsSI('D', 'T', p1_temp, 'P', p1_pressure, refrigerant)
             except ValueError as e:
