@@ -26,10 +26,10 @@ try:
     df_capillary = pd.read_csv('capillary_constants.csv', encoding='utf-8-sig')
     logger.info("Columnas en capillary_constants.csv: %s", df_capillary.columns.tolist())
 except FileNotFoundError:
-    df_capillary = pd.DataFrame(columns=['Refrigerant', 'C'])
+    df_capillary = pd.DataFrame(columns=['Refrigerant', 'Cooling_Power', 'C'])
     logger.error("capillary_constants.csv no encontrado")
 except Exception as e:
-    df_capillary = pd.DataFrame(columns=['Refrigerant', 'C'])
+    df_capillary = pd.DataFrame(columns=['Refrigerant', 'Cooling_Power', 'C'])
     logger.error("Error al leer capillary_constants.csv: %s", str(e), exc_info=True)
 
 custom_refrigerants = ['R-454B', 'R-417A', 'R-454C', 'R-450A', 'R-452A']
@@ -118,24 +118,45 @@ def get_properties_from_csv(refrigerant, temp_c):
         'density_vapor': props['Densidad Vapor (kg/m³)']
     }
 
-def get_capillary_constant(refrigerant):
+def get_capillary_constant(refrigerant, cooling_power_watts):
     default_c = 4
     if df_capillary.empty:
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
+    
     possible_columns = [col for col in df_capillary.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
     if not possible_columns:
         logger.warning("Columna 'Refrigerant' no encontrada en capillary_constants.csv, usando valor por defecto: %s", default_c)
         return default_c
     refrigerant_col = possible_columns[0]
+    
+    # Definir los rangos de potencia y sus correspondientes valores de C
+    cooling_power_ranges = [
+        (500, 'c500'), (750, 'c750'), (1000, 'c1000'), (1500, 'c1500'),
+        (2000, 'c2000'), (3000, 'c3000'), (5000, 'c5000'), (8000, 'c8000'),
+        (10000, 'c10000'), (12000, 'c12000'), (14000, 'c14000'), (16000, 'c16000'),
+        (18000, 'c18000'), (24000, 'c24000'), (30000, 'c30000'), (36000, 'c36000'),
+        (48000, 'c48000'), (60000, 'c60000')
+    ]
+    
+    # Encontrar el valor de C basado en la potencia de enfriamiento
+    c_column = 'C'
+    for threshold, c_key in cooling_power_ranges:
+        if cooling_power_watts <= threshold:
+            c_column = c_key
+            break
+    else:
+        c_column = 'c60000'
+    
     row = df_capillary[df_capillary[refrigerant_col] == refrigerant]
     if row.empty:
         logger.warning("No se encontró constante para %s, usando valor por defecto: %s", refrigerant, default_c)
         return default_c
+    
     try:
-        return float(row['C'].iloc[0])
-    except (ValueError, TypeError) as e:
-        logger.error("Error al leer constante C para %s: %s", refrigerant, str(e))
+        return float(row[c_column].iloc[0])
+    except (ValueError, TypeError, KeyError) as e:
+        logger.error("Error al leer constante %s para %s: %s", c_column, refrigerant, str(e))
         return default_c
 
 def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling):
@@ -173,7 +194,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
         raise ValueError("Delta P debe ser positivo")
     logger.debug("Diferencia de presión: %s Pa", delta_p)
 
-    C = get_capillary_constant(refrigerant)
+    C = get_capillary_constant(refrigerant, cooling_power_watts)
     logger.debug("Constante capilar C: %s", C)
 
     # Calcular longitudes iniciales usando la ecuación proporcionada
