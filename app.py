@@ -180,7 +180,7 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
         logger.error("Error al leer constante %s para %s: %s", selected_column, refrigerant, str(e))
         return default_c
 
-def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling):
+def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling, evap_temp_c):
     logger.debug("Calculando longitudes de capilar para %s", refrigerant)
     is_custom = refrigerant in custom_refrigerants
     cooling_power_value = cooling_power['value']
@@ -229,11 +229,15 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant, cooling_power_btu_h)
     logger.debug("Constante capilar C: %s", C)
 
-    # Calcular longitudes iniciales usando la ecuación proporcionada
+    # Calcular el factor de corrección fc(T) = 4.516e-4 * T^2 + 0.06355 * T + 2.0903
+    fc = 4.516e-4 * (evap_temp_c ** 2) + 0.06355 * evap_temp_c + 2.0903
+    logger.debug("Factor de corrección fc(T) para T=%s°C: %s", evap_temp_c, fc)
+
+    # Calcular longitudes iniciales usando la ecuación proporcionada, aplicando fc
     initial_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
-            length = (delta_p * rho * (D ** 4) * C) / m_dot
+            length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
             # Solo incluir longitudes entre 0.3 y 4 metros
             if 0.3 <= length <= 4:
                 initial_lengths.append({
@@ -521,7 +525,7 @@ def get_thermo_properties():
 
         logger.debug("Calculando longitudes de capilar")
         capillary_result, mass_flow = calculate_capillary_lengths(
-            refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy, subcooling
+            refrigerant, cooling_power, p1, p4, p1_enthalpy, p2_enthalpy, subcooling, evap_temp_c
         )
 
         response = {
