@@ -20,7 +20,6 @@ except FileNotFoundError:
     logger.error("refrigerants.csv no encontrado")
 except Exception as e:
     df_refrigerants = pd.DataFrame()
-    logger.error社交媒体ads = pd.DataFrame()
     logger.error("Error al leer refrigerants.csv: %s", str(e), exc_info=True)
 
 try:
@@ -139,45 +138,29 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
     # Seleccionar la primera fila si hay duplicados
     row = row.iloc[0]
     
-    if refrigerant == 'R134a':
-        # Para R134a, usar la ecuación polinómica con coeficientes del CSV
-        try:
-            coeff_x3 = float(row.get('coeff_x3', 0))
-            coeff_x2 = float(row.get('coeff_x2', 0))
-            coeff_x = float(row.get('coeff_x', 0))
-            constant = float(row.get('constant', 0))
-            c_value = (coeff_x3 * (cooling_power_btu_h ** 3) +
-                       coeff_x2 * (cooling_power_btu_h ** 2) +
-                       coeff_x * cooling_power_btu_h +
-                       constant)
-            logger.debug("Constante C calculada para R134a a %s BTU/h: %s", cooling_power_btu_h, c_value)
-            return c_value
-        except (ValueError, TypeError, KeyError) as e:
-            logger.error("Error al calcular constante para R134a: %s", str(e))
-            return default_c
-    else:
-        # Lógica existente para otros refrigerantes
-        power_thresholds = [
-            (500, 'c 500'),
-            (750, 'c 750'),
-            (1000, 'c 1000'),
-            (1500, 'c 1500'),
-            (2000, 'c 2000'),
-            (3000, 'c 3000'),
-            (5000, 'c 5000'),
-            (8000, 'c 8000'),
-            (10000, 'c 10000'),
-            (12000, 'c 12000'),
-            (14000, 'c 14000'),
-            (16000, 'c 16000'),
-            (18000, 'c 18000'),
-            (24000, 'c 24000'),
-            (30000, 'c 30000'),
-            (36000, 'c 36000'),
-            (48000, 'c 48000'),
-            (60000, 'c 60000')
-        ]
-        
+    # Definir los umbrales de potencia para la lógica de tabla
+    power_thresholds = [
+        (500, 'c 500'),
+        (750, 'c 750'),
+        (1000, 'c 1000'),
+        (1500, 'c 1500'),
+        (2000, 'c 2000'),
+        (3000, 'c 3000'),
+        (5000, 'c 5000'),
+        (8000, 'c 8000'),
+        (10000, 'c 10000'),
+        (12000, 'c 12000'),
+        (14000, 'c 14000'),
+        (16000, 'c 16000'),
+        (18000, 'c 18000'),
+        (24000, 'c 24000'),
+        (30000, 'c 30000'),
+        (36000, 'c 36000'),
+        (48000, 'c 48000'),
+        (60000, 'c 60000')
+    ]
+    
+    def get_table_based_c():
         selected_column = None
         for threshold, column in power_thresholds:
             if cooling_power_btu_h <= threshold:
@@ -195,6 +178,26 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
         except (ValueError, TypeError, KeyError) as e:
             logger.error("Error al leer constante %s para %s: %s", selected_column, refrigerant, str(e))
             return default_c
+
+    if refrigerant == 'R134a':
+        # Intentar calcular C usando la ecuación polinómica
+        try:
+            coeff_x3 = float(row.get('coeff_x3', 0))
+            coeff_x2 = float(row.get('coeff_x2', 0))
+            coeff_x = float(row.get('coeff_x', 0))
+            constant = float(row.get('constant', 0))
+            c_value = (coeff_x3 * (cooling_power_btu_h ** 3) +
+                       coeff_x2 * (cooling_power_btu_h ** 2) +
+                       coeff_x * cooling_power_btu_h +
+                       constant)
+            logger.debug("Constante C calculada para R134a a %s BTU/h: %s", cooling_power_btu_h, c_value)
+            return c_value
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("Error al calcular constante para R134a con ecuación: %s. Usando tabla.", str(e))
+            return get_table_based_c()
+    else:
+        # Usar lógica de tabla para otros refrigerantes
+        return get_table_based_c()
 
 def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subcooling, evap_temp_c):
     logger.debug("Calculando longitudes de capilar para %s", refrigerant)
@@ -248,10 +251,12 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     logger.debug("Factor de corrección fc(T) para T=%s°C: %s", evap_temp_c, fc)
 
     initial_lengths = []
+    all_lengths = []  # Para depuración
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
-            if 0.3 <= length <= 4:
+            all_lengths.append({'diameter_mm': D * 1000, 'length_m': length})
+            if 0.3 <= length <= 4:  # Relajado a 4 metros para permitir más flexibilidad
                 initial_lengths.append({
                     'diameter_m': D,
                     'diameter_mm': D * 1000,
@@ -270,6 +275,82 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'diameter_mm': D * 1000,
                 'length_m': 'N/A'
             })
+    
+    logger.debug("Longitudes calculadas para todos los diámetros: %s", all_lengths)
+
+    # Intentar con C de la tabla si no hay longitudes válidas para R134a
+    if not any(isinstance(item['length_m'], (int, float)) for item in initial_lengths) and refrigerant == 'R134a':
+        logger.warning("No se encontraron longitudes válidas con ecuación para R134a. Intentando con constante de tabla.")
+        # Forzar el uso de la lógica de tabla
+        original_c = C
+        power_thresholds = [
+            (500, 'c 500'),
+            (750, 'c 750'),
+            (1000, 'c 1000'),
+            (1500, 'c 1500'),
+            (2000, 'c 2000'),
+            (3000, 'c 3000'),
+            (5000, 'c 5000'),
+            (8000, 'c 8000'),
+            (10000, 'c 10000'),
+            (12000, 'c 12000'),
+            (14000, 'c 14000'),
+            (16000, 'c 16000'),
+            (18000, 'c 18000'),
+            (24000, 'c 24000'),
+            (30000, 'c 30000'),
+            (36000, 'c 36000'),
+            (48000, 'c 48000'),
+            (60000, 'c 60000')
+        ]
+        selected_column = None
+        for threshold, column in power_thresholds:
+            if cooling_power_btu_h <= threshold:
+                selected_column = column
+                break
+        
+        if selected_column is None:
+            selected_column = power_thresholds[-1][1]
+        
+        try:
+            C = float(df_capillary[df_capillary['Refrigerant'] == refrigerant][selected_column].iloc[0])
+            logger.debug("Constante C de tabla para R134a a %s BTU/h: %s (columna: %s)", 
+                         cooling_power_btu_h, C, selected_column)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("Error al leer constante de tabla %s para R134a: %s. Usando default.", str(e))
+            C = default_c
+
+        # Recalcular longitudes con C de tabla
+        initial_lengths = []
+        all_lengths = []
+        for D in COMMERCIAL_DIAMETERS:
+            try:
+                length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
+                all_lengths.append({'diameter_mm': D * 1000, 'length_m': length})
+                if 0.3 <= length <= 4:
+                    initial_lengths.append({
+                        'diameter_m': D,
+                        'diameter_mm': D * 1000,
+                        'length_m': length
+                    })
+                else:
+                    initial_lengths.append({
+                        'diameter_m': D,
+                        'diameter_mm': D * 1000,
+                        'length_m': 'N/A'
+                    })
+            except Exception as e:
+                logger.error("Error calculando longitud para diámetro %s con C de tabla: %s", D, str(e), exc_info=True)
+                initial_lengths.append({
+                    'diameter_m': D,
+                    'diameter_mm': D * 1000,
+                    'length_m': 'N/A'
+                })
+        
+        logger.debug("Longitudes recalculadas con C de tabla (%s) para R134a: %s", C, all_lengths)
+        if not any(isinstance(item['length_m'], (int, float)) for item in initial_lengths):
+            logger.error("Aun no se encontraron longitudes válidas entre 0.3 y 4 metros con C de tabla: %s", C)
+            raise ValueError(f"No se encontraron longitudes válidas entre 0.3 y 4 metros (C ecuación: {original_c}, C tabla: {C})")
 
     valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
     if not valid_lengths:
