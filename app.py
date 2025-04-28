@@ -235,18 +235,22 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
 
     # Calcular longitudes iniciales usando la ecuación proporcionada, aplicando fc
     initial_lengths = []
-    all_lengths = []  # Para depuración
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
-            # Almacenar todas las longitudes calculadas, sin restricciones
-            length = round(length, 3) if length > 0 else 'N/A'
-            initial_lengths.append({
-                'diameter_m': D,
-                'diameter_mm': D * 1000,
-                'length_m': length
-            })
-            all_lengths.append({'diameter_mm': D * 1000, 'length_m': length})
+            # Solo incluir longitudes entre 0.3 y 4 metros
+            if 0.3 <= length <= 4:
+                initial_lengths.append({
+                    'diameter_m': D,
+                    'diameter_mm': D * 1000,
+                    'length_m': length
+                })
+            else:
+                initial_lengths.append({
+                    'diameter_m': D,
+                    'diameter_mm': D * 1000,
+                    'length_m': 'N/A'
+                })
         except Exception as e:
             logger.error("Error calculando longitud para diámetro %s: %s", D, str(e), exc_info=True)
             initial_lengths.append({
@@ -254,15 +258,12 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'diameter_mm': D * 1000,
                 'length_m': 'N/A'
             })
-            all_lengths.append({'diameter_mm': D * 1000, 'length_m': 'N/A'})
 
-    logger.debug("Longitudes calculadas para todos los diámetros: %s", all_lengths)
-
-    # Encontrar el ganador: longitud más cercana a 2m
-    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float))]
+    # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
+    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
     if not valid_lengths:
-        logger.error("No se encontraron longitudes válidas")
-        raise ValueError("No se encontraron longitudes válidas")
+        logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
+        raise ValueError("No se encontraron longitudes válidas entre 0.3 y 2 metros")
     
     winner = min(valid_lengths, key=lambda x: abs(2 - x['length_m']))
     winner_diameter = winner['diameter_m']
@@ -282,8 +283,11 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 continue
             ratio = D / winner_diameter
             new_length = winner_length * (ratio ** 4.6)
-            # Incluir todas las longitudes calculadas, sin restricciones
-            new_length = round(new_length, 3) if new_length > 0 else 'N/A'
+            # Solo mostrar longitudes entre 0.3 y 4 metros
+            if 0.3 <= new_length <= 4:
+                new_length = round(new_length, 3)
+            else:
+                new_length = 'N/A'
             capillary_lengths.append({
                 'diameter_mm': D * 1000,
                 'length_m': new_length
@@ -335,7 +339,7 @@ def get_thermo_properties():
         logger.error("Datos de entrada inválidos: %s", str(e), exc_info=True)
         return jsonify({'status': 'error', 'message': 'Datos de entrada inválidos'}), 400
 
-    if cond W <= evap_temp:
+    if cond_temp <= evap_temp:
         logger.error("Temperatura de condensación menor o igual a la de evaporación: cond_temp=%s, evap_temp=%s", cond_temp, evap_temp)
         return jsonify({'status': 'error', 'message': 'La temperatura de condensación debe ser mayor que la de evaporación'}), 400
     if superheat < 0 or subcooling < 0:
