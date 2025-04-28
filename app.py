@@ -140,14 +140,14 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
     
     # Definir los umbrales de potencia en BTU/h y las columnas correspondientes
     power_thresholds = [
+        (100, 'c 100'),
+        (300, 'c 300'),
         (500, 'c 500'),
         (750, 'c 750'),
         (1000, 'c 1000'),
-        (1500, 'c 1500'),
         (2000, 'c 2000'),
         (3000, 'c 3000'),
         (5000, 'c 5000'),
-        (8000, 'c 8000'),
         (10000, 'c 10000'),
         (12000, 'c 12000'),
         (14000, 'c 14000'),
