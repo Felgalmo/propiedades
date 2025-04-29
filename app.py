@@ -284,7 +284,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
             ratio = D / winner_diameter
             new_length = winner_length * (ratio ** 4.6)
             # Solo mostrar longitudes entre 0.3 y 4 metros
-            if 0.3 <= new_length <= 4:
+            if 0.1 <= new_length <= 8:
                 new_length = round(new_length, 3)
             else:
                 new_length = 'N/A'
