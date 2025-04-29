@@ -229,8 +229,8 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant, cooling_power_btu_h)
     logger.debug("Constante capilar C: %s", C)
 
-    # Calcular el factor de corrección fc(T) = 0.001778 * T^2 - 0.01111 * T + 0.511
-    fc = 17.78e-4 * (evap_temp_c ** 2) - 0.01111 * evap_temp_c + 0.511
+    # Calcular el factor de corrección fc(T) = 4.516e-4 * T^2 + 0.06355 * T + 2.0903
+    fc = 0.001778 * (evap_temp_c ** 2) - 0.0111 * evap_temp_c + 0.511
     logger.debug("Factor de corrección fc(T) para T=%s°C: %s", evap_temp_c, fc)
 
     # Calcular longitudes iniciales usando la ecuación proporcionada, aplicando fc
