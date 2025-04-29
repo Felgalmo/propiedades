@@ -5,7 +5,6 @@ import CoolProp.CoolProp as CP
 import pandas as pd
 import math
 import logging
-import uuid
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -38,6 +37,10 @@ try:
     if missing_columns:
         logger.error("Faltan columnas en capillary_constants.csv: %s", missing_columns)
         df_capillary = pd.DataFrame(columns=['Refrigerant'])
+    else:
+        # Filtrar filas inválidas (por ejemplo, cabeceras duplicadas)
+        df_capillary = df_capillary[df_capillary['Refrigerant'].str.strip().str.lower() != 'refrigerant']
+        logger.debug("Filas válidas en capillary_constants.csv:\n%s", df_capillary.to_string())
 except FileNotFoundError:
     df_capillary = pd.DataFrame(columns=['Refrigerant'])
     logger.error("capillary_constants.csv no encontrado")
@@ -146,11 +149,11 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
     refrigerant_col = possible_columns[0]
     
     # Normalizar refrigerante para comparación
-    normalized_refrigerant = refrigerant.strip().replace('-', '')
-    df_capillary[refrigerant_col] = df_capillary[refrigerant_col].str.strip().str.replace('-', '')
+    normalized_refrigerant = refrigerant.strip().replace('-', '').lower()
+    df_capillary[refrigerant_col] = df_capillary[refrigerant_col].str.strip().str.replace('-', '').str.lower()
     logger.debug("Refrigerantes disponibles en capillary_constants.csv: %s", df_capillary[refrigerant_col].tolist())
     
-    row = df_capillary[df_capillary[refrigerant_col].str.lower() == normalized_refrigerant.lower()]
+    row = df_capillary[df_capillary[refrigerant_col] == normalized_refrigerant]
     if row.empty:
         logger.warning("No se encontró constante para %s, usando valor por defecto: %s", refrigerant, default_c)
         return default_c
@@ -370,7 +373,7 @@ def get_thermo_properties():
             evap_props = get_properties_from_csv(refrigerant, evap_temp_c)
             cond_props = get_properties_from_csv(refrigerant, cond_temp_c)
 
-            p4_pressure = cond sizzling_props['pressure_bubble']
+            p4_pressure = cond_props['pressure_bubble']
             if subcooling == 0:
                 p4_enthalpy = cond_props['h_liquid']
                 p4_temp = cond_temp
