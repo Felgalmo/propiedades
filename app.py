@@ -5,16 +5,20 @@ import CoolProp.CoolProp as CP
 import pandas as pd
 import math
 import logging
+import uuid
 
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app, resources={r"/*": {"origins": "*"}})
 
+# Configuración de logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Carga de archivos CSV
 try:
     df_refrigerants = pd.read_csv('refrigerants.csv', encoding='utf-8-sig')
     logger.info("Columnas en refrigerants.csv: %s", df_refrigerants.columns.tolist())
+    logger.debug("Primeras filas de refrigerants.csv:\n%s", df_refrigerants.head().to_string())
 except FileNotFoundError:
     df_refrigerants = pd.DataFrame()
     logger.error("refrigerants.csv no encontrado")
@@ -25,6 +29,15 @@ except Exception as e:
 try:
     df_capillary = pd.read_csv('capillary_constants.csv', encoding='utf-8-sig')
     logger.info("Columnas en capillary_constants.csv: %s", df_capillary.columns.tolist())
+    logger.debug("Primeras filas de capillary_constants.csv:\n%s", df_capillary.head().to_string())
+    # Validar columnas esperadas
+    expected_columns = ['Refrigerant', 'c 100', 'c 300', 'c 500', 'c 750', 'c 1000', 'c 2000', 'c 3000', 
+                        'c 5000', 'c 10000', 'c 12000', 'c 14000', 'c 16000', 'c 18000', 'c 24000', 
+                        'c 30000', 'c 36000', 'c 48000', 'c 60000']
+    missing_columns = [col for col in expected_columns if col not in df_capillary.columns]
+    if missing_columns:
+        logger.error("Faltan columnas en capillary_constants.csv: %s", missing_columns)
+        df_capillary = pd.DataFrame(columns=['Refrigerant'])
 except FileNotFoundError:
     df_capillary = pd.DataFrame(columns=['Refrigerant'])
     logger.error("capillary_constants.csv no encontrado")
@@ -124,55 +137,60 @@ def get_capillary_constant(refrigerant, cooling_power_btu_h):
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
     
+    # Normalizar nombres de columnas y refrigerante
     possible_columns = [col for col in df_capillary.columns if col.strip().lower() in ['refrigerante', 'refrigerant']]
+    logger.debug("Columnas posibles para 'Refrigerant': %s", possible_columns)
     if not possible_columns:
         logger.warning("Columna 'Refrigerant' no encontrada en capillary_constants.csv, usando valor por defecto: %s", default_c)
         return default_c
     refrigerant_col = possible_columns[0]
     
-    row = df_capillary[df_capillary[refrigerant_col] == refrigerant]
+    # Normalizar refrigerante para comparación
+    normalized_refrigerant = refrigerant.strip().replace('-', '')
+    df_capillary[refrigerant_col] = df_capillary[refrigerant_col].str.strip().str.replace('-', '')
+    logger.debug("Refrigerantes disponibles en capillary_constants.csv: %s", df_capillary[refrigerant_col].tolist())
+    
+    row = df_capillary[df_capillary[refrigerant_col].str.lower() == normalized_refrigerant.lower()]
     if row.empty:
         logger.warning("No se encontró constante para %s, usando valor por defecto: %s", refrigerant, default_c)
         return default_c
     
     # Seleccionar la primera fila si hay duplicados
     row = row.iloc[0]
+    logger.debug("Fila seleccionada para %s: %s", refrigerant, row.to_dict())
     
-    # Definir los umbrales de potencia en BTU/h y las columnas correspondientes
+    # Definir umbrales de potencia
     power_thresholds = [
-        (100, 'c 100'),
-        (300, 'c 300'),
-        (500, 'c 500'),
-        (750, 'c 750'),
-        (1000, 'c 1000'),
-        (2000, 'c 2000'),
-        (3000, 'c 3000'),
-        (5000, 'c 5000'),
-        (10000, 'c 10000'),
-        (12000, 'c 12000'),
-        (14000, 'c 14000'),
-        (16000, 'c 16000'),
-        (18000, 'c 18000'),
-        (24000, 'c 24000'),
-        (30000, 'c 30000'),
-        (36000, 'c 36000'),
-        (48000, 'c 48000'),
-        (60000, 'c 60000')
+        (100, 'c 100'), (300, 'c 300'), (500, 'c 500'), (750, 'c 750'),
+        (1000, 'c 1000'), (2000, 'c 2000'), (3000, 'c 3000'), (5000, 'c 5000'),
+        (10000, 'c 10000'), (12000, 'c 12000'), (14000, 'c 14000'), (16000, 'c 16000'),
+        (18000, 'c 18000'), (24000, 'c 24000'), (30000, 'c 30000'), (36000, 'c 36000'),
+        (48000, 'c 48000'), (60000, 'c 60000')
     ]
     
-    # Seleccionar la columna adecuada según la potencia de enfriamiento
+    # Seleccionar la columna adecuada
     selected_column = None
     for threshold, column in power_thresholds:
         if cooling_power_btu_h <= threshold:
             selected_column = column
             break
-    
-    # Si la potencia es mayor al máximo umbral, usar la última columna
     if selected_column is None:
         selected_column = power_thresholds[-1][1]
+    logger.debug("Columna seleccionada para %s BTU/h: %s", cooling_power_btu_h, selected_column)
     
+    # Verificar que la columna existe
+    if selected_column not in df_capillary.columns:
+        logger.warning("Columna %s no encontrada en capillary_constants.csv, usando valor por defecto: %s", selected_column, default_c)
+        return default_c
+    
+    # Obtener y convertir el valor
     try:
-        c_value = float(row[selected_column])
+        value = row[selected_column]
+        logger.debug("Valor en %s para %s: %s", selected_column, refrigerant, value)
+        if pd.isna(value):
+            logger.warning("Valor nulo en %s para %s, usando valor por defecto: %s", selected_column, refrigerant, default_c)
+            return default_c
+        c_value = float(value)
         logger.debug("Constante C seleccionada para %s a %s BTU/h: %s (columna: %s)", 
                      refrigerant, cooling_power_btu_h, c_value, selected_column)
         return c_value
@@ -188,10 +206,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     
     # Convertir la potencia de enfriamiento a BTU/h
     if cooling_power_unit == 'W':
-        cooling_power_btu_h = cooling_power_value * 3.41214  # 1 W = 3.41214 BTU/h
+        cooling_power_btu_h = cooling_power_value * 3.41214
     elif cooling_power_unit == 'kcal/h':
-        cooling_power_btu_h = cooling_power_value * 3.96832  # 1 kcal/h = 3.96832 BTU/h
-    else:  # Asumir BTU/h
+        cooling_power_btu_h = cooling_power_value * 3.96832
+    else:
         cooling_power_btu_h = cooling_power_value
     
     cooling_power_watts = cooling_power_value
@@ -229,16 +247,13 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant, cooling_power_btu_h)
     logger.debug("Constante capilar C: %s", C)
 
-    # Calcular el factor de corrección fc(T) = 4.516e-4 * T^2 + 0.06355 * T + 2.0903
     fc = 0 * (evap_temp_c ** 2) - 0.02 * evap_temp_c + 0.6
     logger.debug("Factor de corrección fc(T) para T=%s°C: %s", evap_temp_c, fc)
 
-    # Calcular longitudes iniciales usando la ecuación proporcionada, aplicando fc
     initial_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
-            # Solo incluir longitudes entre 0.3 y 4 metros
             if 0.3 <= length <= 9:
                 initial_lengths.append({
                     'diameter_m': D,
@@ -259,7 +274,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': 'N/A'
             })
 
-    # Encontrar el ganador: longitud más cercana a 2m pero menor a 2m
     valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
     if not valid_lengths:
         logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
@@ -270,7 +284,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     winner_length = winner['length_m']
     logger.debug("Ganador: diámetro=%s mm, longitud=%s m", winner['diameter_mm'], winner_length)
 
-    # Calcular nuevas longitudes usando la fórmula NL = OL * (New_ID / Orig_ID)^4.6
     capillary_lengths = []
     for D in COMMERCIAL_DIAMETERS:
         try:
@@ -283,7 +296,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 continue
             ratio = D / winner_diameter
             new_length = winner_length * (ratio ** 4.6)
-            # Solo mostrar longitudes entre 0.3 y 4 metros
             if 0.3 <= new_length <= 9:
                 new_length = round(new_length, 3)
             else:
@@ -299,7 +311,6 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': 'N/A'
             })
 
-    # Preparar la respuesta con el ganador y las nuevas longitudes
     result = {
         'winner': {
             'diameter_mm': winner['diameter_mm'],
@@ -359,7 +370,7 @@ def get_thermo_properties():
             evap_props = get_properties_from_csv(refrigerant, evap_temp_c)
             cond_props = get_properties_from_csv(refrigerant, cond_temp_c)
 
-            p4_pressure = cond_props['pressure_bubble']
+            p4_pressure = cond sizzling_props['pressure_bubble']
             if subcooling == 0:
                 p4_enthalpy = cond_props['h_liquid']
                 p4_temp = cond_temp
