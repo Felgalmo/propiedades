@@ -238,8 +238,8 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     for D in COMMERCIAL_DIAMETERS:
         try:
             length = (delta_p * rho * (D ** 4) * C) / m_dot * fc
-            # Solo incluir longitudes entre 0.3 y 4 metros
-            if 0.3 <= length <= 4:
+            # Solo incluir longitudes entre 0.1 y 8 metros
+            if 0.1 <= length <= 8:
                 initial_lengths.append({
                     'diameter_m': D,
                     'diameter_mm': D * 1000,
