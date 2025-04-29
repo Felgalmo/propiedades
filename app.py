@@ -119,7 +119,7 @@ def get_properties_from_csv(refrigerant, temp_c):
     }
 
 def get_capillary_constant(refrigerant, cooling_power_btu_h):
-    default_c = 8
+    default_c = 0.1
     if df_capillary.empty:
         logger.warning("Capillary constants CSV vacío, usando valor por defecto: %s", default_c)
         return default_c
