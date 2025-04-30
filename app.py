@@ -277,10 +277,10 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
                 'length_m': 'N/A'
             })
 
-    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.3 <= item['length_m'] <= 2]
+    valid_lengths = [item for item in initial_lengths if isinstance(item['length_m'], (int, float)) and 0.01 <= item['length_m'] <= 10]
     if not valid_lengths:
-        logger.error("No se encontraron longitudes válidas entre 0.3 y 2 metros")
-        raise ValueError("No se encontraron longitudes válidas entre 0.3 y 2 metros")
+        logger.error("No se encontraron longitudes válidas entre 0.01 y 10 metros")
+        raise ValueError("No se encontraron longitudes válidas entre 0.01 y 10 metros")
     
     winner = min(valid_lengths, key=lambda x: abs(2 - x['length_m']))
     winner_diameter = winner['diameter_m']
