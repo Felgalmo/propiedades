@@ -250,7 +250,7 @@ def calculate_capillary_lengths(refrigerant, cooling_power, p1, p4, h1, h2, subc
     C = get_capillary_constant(refrigerant, cooling_power_btu_h)
     logger.debug("Constante capilar C: %s", C)
 
-    fc = 0 * (evap_temp_c ** 2) - 0.02 * evap_temp_c + 0.6
+    fc = -0.025 * (-20 - evap_temp_c) + 1
     logger.debug("Factor de corrección fc(T) para T=%s°C: %s", evap_temp_c, fc)
 
     initial_lengths = []
