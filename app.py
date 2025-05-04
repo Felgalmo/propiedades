@@ -30,7 +30,7 @@ try:
     logger.info("Columnas en capillary_constants.csv: %s", df_capillary.columns.tolist())
     logger.debug("Primeras filas de capillary_constants.csv:\n%s", df_capillary.head().to_string())
     # Validar columnas esperadas
-    expected_columns = ['Refrigerant', 'c 100', 'c 300', 'c 500', 'c 750', 'c 1000', 'c 2000', 'c 3000', 
+    expected_columns = ['Refrigerant', 'c 200', 'c 300', 'c 400', 'c 500', 'c 600', 'c 750', 'c 1000', 'c 1500', 'c 2000', 'c 2500', 'c 3000', 
                         'c 5000', 'c 10000', 'c 12000', 'c 14000', 'c 16000', 'c 18000', 'c 24000', 
                         'c 30000', 'c 36000', 'c 48000', 'c 60000']
     missing_columns = [col for col in expected_columns if col not in df_capillary.columns]
