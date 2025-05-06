@@ -158,6 +158,7 @@
                 <tr class="bg-gray-100">
                     <th class="py-2 px-3 text-left text-xs font-medium text-gray-700">Diameter (inches)</th>
                     <th class="py-2 px-3 text-left text-xs font-medium text-gray-700">Length (m)</th>
+                    <th class="py-2 px-3 text-left text-xs font-medium text-gray-700">Length (ft)</th>
                 </tr>
             </thead>
             <tbody id="capillaryTableBody" class="text-xs text-gray-600">
@@ -168,50 +169,50 @@
     
     <script>
         const COMMERCIAL_DIAMETERS_INCHES = {
-0.000635: 0.025,
-0.0006604: 0.026,
-0.0007112: 0.028,
-0.000762: 0.030,
-0.0007874: 0.031,
-0.0008128: 0.032,
-0.0008382: 0.033,
-0.0008636: 0.034,
-0.000889: 0.035,
-0.0009144: 0.036,
-0.0009398: 0.037,
-0.0009652: 0.038,
-0.0009906: 0.039,
-0.001016: 0.040,
-0.0010414: 0.041,
-0.0010668: 0.042,
-0.0010922: 0.043,
-0.0011176: 0.044,
-0.001143: 0.045,
-0.0011684: 0.046,
-0.0011938: 0.047,
-0.0012192: 0.048,
-0.0012446: 0.049,
-0.00127: 0.050,
-0.0012954: 0.051,
-0.0013208: 0.052,
-0.0013462: 0.053,
-0.0013716: 0.054,
-0.001397: 0.055,
-0.0014224: 0.056,
-0.0014478: 0.057,
-0.0014732: 0.058,
-0.0014986: 0.059,
-0.001524: 0.060,
-0.0015494: 0.061,
-0.0015748: 0.062,
-0.0016002: 0.063,
-0.0016256: 0.064,
-0.001651: 0.065,
-0.0016764: 0.066,
-0.0017018: 0.067,
-0.0017272: 0.068,
-0.0017526: 0.069,
-0.001778: 0.070
+            0.000635: 0.025,
+            0.0006604: 0.026,
+            0.0007112: 0.028,
+            0.000762: 0.030,
+            0.0007874: 0.031,
+            0.0008128: 0.032,
+            0.0008382: 0.033,
+            0.0008636: 0.034,
+            0.000889: 0.035,
+            0.0009144: 0.036,
+            0.0009398: 0.037,
+            0.0009652: 0.038,
+            0.0009906: 0.039,
+            0.001016: 0.040,
+            0.0010414: 0.041,
+            0.0010668: 0.042,
+            0.0010922: 0.043,
+            0.0011176: 0.044,
+            0.001143: 0.045,
+            0.0011684: 0.046,
+            0.0011938: 0.047,
+            0.0012192: 0.048,
+            0.0012446: 0.049,
+            0.00127: 0.050,
+            0.0012954: 0.051,
+            0.0013208: 0.052,
+            0.0013462: 0.053,
+            0.0013716: 0.054,
+            0.001397: 0.055,
+            0.0014224: 0.056,
+            0.0014478: 0.057,
+            0.0014732: 0.058,
+            0.0014986: 0.059,
+            0.001524: 0.060,
+            0.0015494: 0.061,
+            0.0015748: 0.062,
+            0.0016002: 0.063,
+            0.0016256: 0.064,
+            0.001651: 0.065,
+            0.0016764: 0.066,
+            0.0017018: 0.067,
+            0.0017272: 0.068,
+            0.0017526: 0.069,
+            0.001778: 0.070
         };
 
         const cycleCanvas = document.getElementById('cycleCanvas');
@@ -258,7 +259,7 @@
                 '4': { pressure: 0, enthalpy: 0, temperature: 0, density: 0 }
             },
             saturation: { liquid: [], vapor: [] },
-            capillary_lengths: []
+            capillary: { capillary_lengths: [] }
         };
 
         function convertToCelsius(value, unit) {
@@ -375,22 +376,34 @@
                 thermoData.capillary.capillary_lengths.forEach(item => {
                     const row = document.createElement('tr');
                     row.className = 'border-b border-gray-200 hover:bg-gray-50';
+                    
+                    // Diameter cell
                     const diameterCell = document.createElement('td');
                     diameterCell.className = 'py-2 px-3';
                     const diameterMeters = item.diameter_mm / 1000;
-                    const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254).toFixed(3);
+                    const diameterInches = COMMERCIAL_DIAMETERS_INCHES[diameterMeters] || (diameterMeters / 0.0254);
                     diameterCell.textContent = diameterInches.toFixed(3);
-                    const lengthCell = document.createElement('td');
-                    lengthCell.className = 'py-2 px-3';
-                    lengthCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
+                    
+                    // Length in meters cell
+                    const lengthMetersCell = document.createElement('td');
+                    lengthMetersCell.className = 'py-2 px-3';
+                    lengthMetersCell.textContent = typeof item.length_m === 'number' ? item.length_m.toFixed(2) : item.length_m;
+                    
+                    // Length in feet cell
+                    const lengthFeetCell = document.createElement('td');
+                    lengthFeetCell.className = 'py-2 px-3';
+                    lengthFeetCell.textContent = typeof item.length_m === 'number' ? (item.length_m * 3.28084).toFixed(2) : item.length_m;
+                    
+                    // Append cells to row
                     row.appendChild(diameterCell);
-                    row.appendChild(lengthCell);
+                    row.appendChild(lengthMetersCell);
+                    row.appendChild(lengthFeetCell);
                     capillaryTableBody.appendChild(row);
                 });
             } else {
                 const row = document.createElement('tr');
                 const cell = document.createElement('td');
-                cell.colSpan = 2;
+                cell.colSpan = 3;
                 cell.className = 'py-2 px-3 text-center';
                 cell.textContent = 'No capillary data available';
                 row.appendChild(cell);
@@ -626,7 +639,9 @@
             drawPHDiagram();
         });
 
-        function getPointsPH() {
+        function drawPHDiagram() {
+            phCtx.clearRect(0, 0, phCanvas.width, phCanvas.height);
+
             const cyclePoints = [
                 thermoData.points['1'],
                 thermoData.points['2'],
@@ -636,10 +651,10 @@
             const cyclePressures = cyclePoints.map(p => p.pressure);
             const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
 
-            const minP = Math.min(...cyclePressures) * 0.8;
-            const maxP = Math.max(...cyclePressures) * 1.2;
-            const minH = Math.min(...cycleEnthalpies) * 0.9;
-            const maxH = Math.max(...cycleEnthalpies) * 1.1;
+            const minP = Math.min(...cyclePressures, ...thermoData.saturation.liquid.map(p => p.pressure), ...thermoData.saturation.vapor.map(p => p.pressure)) * 0.8;
+            const maxP = Math.max(...cyclePressures, ...thermoData.saturation.liquid.map(p => p.pressure), ...thermoData.saturation.vapor.map(p => p.pressure)) * 1.2;
+            const minH = Math.min(...cycleEnthalpies, ...thermoData.saturation.liquid.map(h => h.enthalpy), ...thermoData.saturation.vapor.map(h => h.enthalpy)) * 0.9;
+            const maxH = Math.max(...cycleEnthalpies, ...thermoData.saturation.liquid.map(h => h.enthalpy), ...thermoData.saturation.vapor.map(h => h.enthalpy)) * 1.1;
 
             const marginX = 32.4;
             const marginY = 25.92;
@@ -649,179 +664,139 @@
             function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
             function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
 
-            return [
+            // Draw saturation curves
+            phCtx.beginPath();
+            phCtx.strokeStyle = '#1e40af';
+            phCtx.lineWidth = 2;
+            thermoData.saturation.liquid.forEach((point, index) => {
+                const x = scaleX(point.enthalpy);
+                const y = scaleY(point.pressure);
+                if (index === 0) phCtx.moveTo(x, y);
+                else phCtx.lineTo(x, y);
+            });
+            phCtx.stroke();
+
+            phCtx.beginPath();
+            phCtx.strokeStyle = '#b91c1c';
+            thermoData.saturation.vapor.forEach((point, index) => {
+                const x = scaleX(point.enthalpy);
+                const y = scaleY(point.pressure);
+                if (index === 0) phCtx.moveTo(x, y);
+                else phCtx.lineTo(x, y);
+            });
+            phCtx.stroke();
+
+            // Draw cycle
+            const points = [
                 { x: scaleX(cyclePoints[0].enthalpy), y: scaleY(cyclePoints[0].pressure), label: '1', temp: cyclePoints[0].temperature, density: cyclePoints[0].density },
                 { x: scaleX(cyclePoints[1].enthalpy), y: scaleY(cyclePoints[1].pressure), label: '2', temp: cyclePoints[1].temperature, density: cyclePoints[1].density },
                 { x: scaleX(cyclePoints[2].enthalpy), y: scaleY(cyclePoints[2].pressure), label: '3', temp: cyclePoints[2].temperature, density: cyclePoints[2].density },
-                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].temperature, density: cyclePoints[3].density }
+                { x: scaleX(cyclePoints[3].enthalpy), y: scaleY(cyclePoints[3].pressure), label: '4', temp: cyclePoints[3].enthalpy, density: cyclePoints[3].density }
             ];
-        }
-
-        function drawPHDiagram() {
-            const pixelRatio = window.devicePixelRatio || 1;
-            phCanvas.width = 324 * pixelRatio;
-            phCanvas.height = 233 * pixelRatio;
-            phCtx.scale(pixelRatio, pixelRatio);
-
-            phCtx.clearRect(0, 0, 324, 233);
-
-            const marginX = 32.4;
-            const marginY = 25.92;
-            const plotWidth = 324 - 2 * marginX;
-            const plotHeight = 233 - 2 * marginY;
-
-            const cyclePoints = [
-                thermoData.points['1'],
-                thermoData.points['2'],
-                thermoData.points['3'],
-                thermoData.points['4']
-            ];
-            const cyclePressures = cyclePoints.map(p => p.pressure);
-            const cycleEnthalpies = cyclePoints.map(h => h.enthalpy);
-
-            const minP = Math.min(...cyclePressures) * 0.8;
-            const maxP = Math.max(...cyclePressures) * 1.2;
-            const minH = Math.min(...cycleEnthalpies) * 0.9;
-            const maxH = Math.max(...cycleEnthalpies) * 1.1;
-
-            function scaleX(h) { return marginX + (h - minH) / (maxH - minH) * plotWidth; }
-            function scaleY(p) { return marginY + plotHeight - (Math.log(p) - Math.log(minP)) / (Math.log(maxP) - Math.log(minP)) * plotHeight; }
 
             phCtx.beginPath();
+            phCtx.strokeStyle = '#15803d';
+            phCtx.lineWidth = 2;
+            points.forEach((point, index) => {
+                if (index === 0) phCtx.moveTo(point.x, point.y);
+                else phCtx.lineTo(point.x, point.y);
+            });
+            phCtx.lineTo(points[0].x, points[0].y);
+            phCtx.stroke();
+
+            // Draw points
+            hoveredPoint = null;
+            points.forEach(point => {
+                phCtx.beginPath();
+                phCtx.arc(point.x, point.y, 5, 0, Math.PI * 2);
+                phCtx.fillStyle = '#047857';
+                phCtx.fill();
+                phCtx.strokeStyle = '#ffffff';
+                phCtx.lineWidth = 1;
+                phCtx.stroke();
+
+                phCtx.fillStyle = '#000000';
+                phCtx.font = '12px Inter';
+                phCtx.fillText(point.label, point.x + 8, point.y + 4);
+
+                const distance = Math.sqrt((point.x - mouseX) ** 2 + (point.y - mouseY) ** 2);
+                if (distance < 10) {
+                    hoveredPoint = point;
+                }
+            });
+
+            // Draw tooltip
+            if (hoveredPoint) {
+                const pointId = hoveredPoint.label;
+                const pointData = cyclePoints[parseInt(pointId) - 1];
+                const phase = getPhase(pointData, pointId);
+                const tooltipText = [
+                    `Point ${pointId}`,
+                    `Pressure: ${(pointData.pressure / 100000).toFixed(2)} bar`,
+                    `Enthalpy: ${(pointData.enthalpy / 1000).toFixed(2)} kJ/kg`,
+                    `Temperature: ${((pointData.temperature - 273.15).toFixed(2))} °C`,
+                    `Density: ${pointData.density.toFixed(2)} kg/m³`,
+                    `Phase: ${phase}`
+                ];
+
+                const maxWidth = Math.max(...tooltipText.map(text => phCtx.measureText(text).width));
+                const tooltipWidth = maxWidth + 10;
+                const tooltipHeight = tooltipText.length * 14 + 10;
+                let tooltipX = mouseX + 10;
+                let tooltipY = mouseY - tooltipHeight - 10;
+
+                if (tooltipX + tooltipWidth > phCanvas.width) tooltipX = mouseX - tooltipWidth - 10;
+                if (tooltipY < 0) tooltipY = mouseY + 10;
+
+                phCtx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                phCtx.fillRect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+                phCtx.fillStyle = '#ffffff';
+                phCtx.font = '12px Inter';
+                tooltipText.forEach((text, index) => {
+                    phCtx.fillText(text, tooltipX + 5, tooltipY + 15 + index * 14);
+                });
+            }
+
+            // Draw axes
+            phCtx.beginPath();
+            phCtx.strokeStyle = '#000000';
+            phCtx.lineWidth = 1;
             phCtx.moveTo(marginX, marginY);
             phCtx.lineTo(marginX, marginY + plotHeight);
             phCtx.lineTo(marginX + plotWidth, marginY + plotHeight);
-            phCtx.strokeStyle = 'black';
-            phCtx.lineWidth = 1.08;
             phCtx.stroke();
 
-            phCtx.font = '14.4px Arial';
-            phCtx.fillStyle = 'black';
-            phCtx.fillText('Pressure (bar)', marginX - 32.4, marginY - 10);
-            phCtx.fillText('Enthalpy (kJ/kg)', marginX + plotWidth - 80, marginY + plotHeight + 15);
+            phCtx.fillStyle = '#000000';
+            phCtx.font = '12px Inter';
+            phCtx.textAlign = 'center';
+            phCtx.fillText('Enthalpy (kJ/kg)', marginX + plotWidth / 2, marginY + plotHeight + 20);
+            phCtx.save();
+            phCtx.translate(marginX - 20, marginY + plotHeight / 2);
+            phCtx.rotate(-Math.PI / 2);
+            phCtx.fillText('Pressure (bar)', 0, 0);
+            phCtx.restore();
 
-            const logMinP = Math.log(minP);
-            const logMaxP = Math.log(maxP);
-            const numPressureTicks = 6;
-            for (let i = 0; i < numPressureTicks; i++) {
-                const logP = logMinP + (logMaxP - logMinP) * i / (numPressureTicks - 1);
-                const p = Math.exp(logP);
-                const y = scaleY(p);
-                phCtx.beginPath();
-                phCtx.moveTo(marginX - 5.4, y);
-                phCtx.lineTo(marginX + 5.4, y);
-                phCtx.stroke();
-                phCtx.fillText((p / 100000).toFixed(1), marginX - 32.4, y + 5.4);
-            }
-
-            const numEnthalpyTicks = 6;
-            const hStep = (maxH - minH) / (numEnthalpyTicks - 1);
-            for (let i = 0; i < numEnthalpyTicks; i++) {
-                const h = minH + i * hStep;
+            // Draw axis labels
+            const hTicks = 5;
+            const pTicks = 5;
+            for (let i = 0; i <= hTicks; i++) {
+                const h = minH + i * (maxH - minH) / hTicks;
                 const x = scaleX(h);
                 phCtx.beginPath();
-                phCtx.moveTo(x, marginY + plotHeight - 5.4);
-                phCtx.lineTo(x, marginY + plotHeight + 5.4);
+                phCtx.moveTo(x, marginY + plotHeight);
+                phCtx.lineTo(x, marginY + plotHeight + 5);
                 phCtx.stroke();
-                phCtx.fillText((h / 1000).toFixed(0), x - 8.1, marginY + plotHeight + 10.8);
+                phCtx.fillText((h / 1000).toFixed(0), x, marginY + plotHeight + 15);
             }
-
-            if (thermoData.saturation.liquid.length > 0) {
+            for (let i = 0; i <= pTicks; i++) {
+                const p = Math.exp(Math.log(minP) + i * (Math.log(maxP) - Math.log(minP)) / pTicks);
+                const y = scaleY(p);
                 phCtx.beginPath();
-                thermoData.saturation.liquid.forEach((point, index) => {
-                    const x = scaleX(point.enthalpy);
-                    const y = scaleY(point.pressure);
-                    if (index === 0) phCtx.moveTo(x, y);
-                    else phCtx.lineTo(x, y);
-                });
-                phCtx.strokeStyle = 'green';
-                phCtx.lineWidth = 1.62;
+                phCtx.moveTo(marginX, y);
+                phCtx.lineTo(marginX - 5, y);
                 phCtx.stroke();
-            }
-
-            if (thermoData.saturation.vapor.length > 0) {
-                phCtx.beginPath();
-                thermoData.saturation.vapor.forEach((point, index) => {
-                    const x = scaleX(point.enthalpy);
-                    const y = scaleY(point.pressure);
-                    if (index === 0) phCtx.moveTo(x, y);
-                    else phCtx.lineTo(x, y);
-                });
-                phCtx.strokeStyle = 'purple';
-                phCtx.lineWidth = 1.62;
-                phCtx.stroke();
-            }
-
-            const pointsPH = getPointsPH();
-            if (pointsPH.length === 4) {
-                phCtx.beginPath();
-                pointsPH.forEach((point, index) => {
-                    if (index === 0) phCtx.moveTo(point.x, point.y);
-                    else phCtx.lineTo(point.x, point.y);
-                });
-                phCtx.lineTo(pointsPH[0].x, pointsPH[0].y);
-                phCtx.strokeStyle = 'blue';
-                phCtx.lineWidth = 2.16;
-                phCtx.stroke();
-
-                pointsPH.forEach(point => {
-                    phCtx.beginPath();
-                    phCtx.arc(point.x, point.y, 3.24, 0, Math.PI * 2);
-                    phCtx.fillStyle = 'red';
-                    phCtx.fill();
-                    phCtx.font = '12.6px Arial';
-                    phCtx.fillStyle = 'black';
-                    const tempC = (point.temp - 273.15).toFixed(1);
-                    phCtx.fillText(`P${point.label} (${tempC}°C)`, point.x + 5.4, point.y - 4.32);
-
-                    const dx = mouseX - point.x;
-                    const dy = mouseY - point.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance < 10) {
-                        hoveredPoint = point.label;
-                    }
-                });
-
-                if (hoveredPoint) {
-                    const point = pointsPH.find(p => p.label === hoveredPoint);
-                    const thermoPoint = thermoData.points[hoveredPoint];
-                    const text = [
-                        `Point ${hoveredPoint}`,
-                        `Pressure: ${(thermoPoint.pressure / 100000).toFixed(2)} bar`,
-                        `Temperature: ${(thermoPoint.temperature - 273.15).toFixed(1)}°C`,
-                        `Enthalpy: ${(thermoPoint.enthalpy / 1000).toFixed(1)} kJ/kg`,
-                        `Density: ${thermoPoint.density.toFixed(1)} kg/m³`,
-                        `Phase: ${getPhase(thermoPoint, hoveredPoint)}`
-                    ].join('\n');
-                    const textWidth = Math.max(...text.split('\n').map(line => phCtx.measureText(line).width));
-                    const textHeight = 6 * 12.6;
-                    let boxX = point.x + 10;
-                    let boxY = point.y - textHeight - 10;
-
-                    // Ajustar posición para evitar cortes
-                    if (boxX + textWidth + 10 > 324) {
-                        boxX = point.x - textWidth - 20; // Mostrar a la izquierda
-                    }
-                    if (boxX < 0) {
-                        boxX = 5; // Asegurar margen izquierdo
-                    }
-                    if (boxY < 0) {
-                        boxY = point.y + 10; // Mostrar debajo si está cerca del borde superior
-                    }
-                    if (boxY + textHeight + 10 > 233) {
-                        boxY = 233 - textHeight - 15; // Asegurar que no se salga por abajo
-                    }
-
-                    phCtx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-                    phCtx.fillRect(boxX, boxY, textWidth + 10, textHeight + 10);
-                    phCtx.strokeStyle = 'black';
-                    phCtx.strokeRect(boxX, boxY, textWidth + 10, textHeight + 10);
-                    phCtx.fillStyle = 'black';
-                    phCtx.font = '12.6px Arial';
-                    text.split('\n').forEach((line, index) => {
-                        phCtx.fillText(line, boxX + 5, boxY + 12.6 * (index + 1));
-                    });
-                }
+                phCtx.fillText((p / 100000).toFixed(2), marginX - 10, y + 4);
             }
         }
 
@@ -831,6 +806,7 @@
             requestAnimationFrame(animate);
         }
 
+        // Initialize
         loadRefrigerants();
         animate();
     </script>
